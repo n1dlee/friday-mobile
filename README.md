@@ -83,7 +83,7 @@ Web search via Groq's browser tool for news, prices and scores. Real weather fro
 ## 🧠 How it works
 
 ```mermaid
-flowchart LR
+flowchart TD
     A([🎙️ Mic]) --> B{Wake word<br/><sub>Vosk · offline</sub>}
     B -->|"Friday"| C{Owner's voice?<br/><sub>ONNX · on-device</sub>}
     C -->|no| X([ignored])
