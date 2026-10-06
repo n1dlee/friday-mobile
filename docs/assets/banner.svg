@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 420" width="1280" height="420" role="img" aria-label="Friday — a JARVIS-style voice assistant for Android">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#04070A"/>
+      <stop offset="1" stop-color="#071219"/>
+    </linearGradient>
+    <radialGradient id="halo" cx="330" cy="210" r="300" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#38E8FF" stop-opacity="0.22"/>
+      <stop offset="0.5" stop-color="#0E7C93" stop-opacity="0.08"/>
+      <stop offset="1" stop-color="#04070A" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="title" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#EBFCFF"/>
+      <stop offset="1" stop-color="#38E8FF"/>
+    </linearGradient>
+    <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="1.4" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="1280" height="420" rx="24" fill="url(#bg)"/>
+  <g stroke="#38E8FF" stroke-opacity="0.04" stroke-width="1"><line x1="0" y1="0" x2="0" y2="420"/><line x1="40" y1="0" x2="40" y2="420"/><line x1="80" y1="0" x2="80" y2="420"/><line x1="120" y1="0" x2="120" y2="420"/><line x1="160" y1="0" x2="160" y2="420"/><line x1="200" y1="0" x2="200" y2="420"/><line x1="240" y1="0" x2="240" y2="420"/><line x1="280" y1="0" x2="280" y2="420"/><line x1="320" y1="0" x2="320" y2="420"/><line x1="360" y1="0" x2="360" y2="420"/><line x1="400" y1="0" x2="400" y2="420"/><line x1="440" y1="0" x2="440" y2="420"/><line x1="480" y1="0" x2="480" y2="420"/><line x1="520" y1="0" x2="520" y2="420"/><line x1="560" y1="0" x2="560" y2="420"/><line x1="600" y1="0" x2="600" y2="420"/><line x1="640" y1="0" x2="640" y2="420"/><line x1="680" y1="0" x2="680" y2="420"/><line x1="720" y1="0" x2="720" y2="420"/><line x1="760" y1="0" x2="760" y2="420"/><line x1="800" y1="0" x2="800" y2="420"/><line x1="840" y1="0" x2="840" y2="420"/><line x1="880" y1="0" x2="880" y2="420"/><line x1="920" y1="0" x2="920" y2="420"/><line x1="960" y1="0" x2="960" y2="420"/><line x1="1000" y1="0" x2="1000" y2="420"/><line x1="1040" y1="0" x2="1040" y2="420"/><line x1="1080" y1="0" x2="1080" y2="420"/><line x1="1120" y1="0" x2="1120" y2="420"/><line x1="1160" y1="0" x2="1160" y2="420"/><line x1="1200" y1="0" x2="1200" y2="420"/><line x1="1240" y1="0" x2="1240" y2="420"/><line x1="1280" y1="0" x2="1280" y2="420"/><line x1="0" y1="0" x2="1280" y2="0"/><line x1="0" y1="40" x2="1280" y2="40"/><line x1="0" y1="80" x2="1280" y2="80"/><line x1="0" y1="120" x2="1280" y2="120"/><line x1="0" y1="160" x2="1280" y2="160"/><line x1="0" y1="200" x2="1280" y2="200"/><line x1="0" y1="240" x2="1280" y2="240"/><line x1="0" y1="280" x2="1280" y2="280"/><line x1="0" y1="320" x2="1280" y2="320"/><line x1="0" y1="360" x2="1280" y2="360"/><line x1="0" y1="400" x2="1280" y2="400"/></g>
+  <rect width="1280" height="420" rx="24" fill="url(#halo)"/>
+  <g transform="translate(330 210)"><circle cx="0" cy="0" r="170" fill="none" stroke="#38E8FF" stroke-opacity="0.18" stroke-width="1.5" stroke-dasharray="2 10"/><circle cx="0" cy="0" r="196" fill="none" stroke="#38E8FF" stroke-opacity="0.1" stroke-width="1.5" stroke-dasharray="60 18"/><circle cx="0" cy="0" r="224" fill="none" stroke="#38E8FF" stroke-opacity="0.06" stroke-width="1.5" stroke-dasharray="4 6"/></g>
+  <g transform="translate(330 210) scale(3.1) translate(-54 -54)" filter="url(#soft)">
+    <path d="M83.00,54.00 L86.50,54.00 M54.00,83.00 L54.00,86.50 M25.00,54.00 L21.50,54.00 M54.00,25.00 L54.00,21.50" fill="none" stroke="#38E8FF" stroke-opacity="0.353" stroke-width="2" stroke-linecap="round"/>
+    <path d="M54.00,37.00 L54.00,30.82 M68.72,45.50 L75.87,41.37 M70.42,49.60 L78.43,47.45 M68.72,62.50 L77.12,67.35 M66.02,66.02 L70.45,70.45 M62.50,68.72 L67.32,77.06 M49.60,70.42 L47.61,77.86 M45.50,68.72 L41.56,75.54 M37.58,58.40 L29.13,60.66 M37.00,54.00 L30.69,54.00 M37.58,49.60 L29.12,47.33 M39.28,45.50 L30.76,40.58 M41.98,41.98 L35.50,35.50 M45.50,39.28 L41.90,33.04 M49.60,37.58 L47.68,30.42" fill="none" stroke="#38E8FF" stroke-opacity="0.702" stroke-width="3" stroke-linecap="round"/>
+    <path d="M58.40,37.58 L61.11,27.47 M62.50,39.28 L68.80,28.37 M66.02,41.98 L74.27,33.73 M71.00,54.00 L82.31,54.00 M70.42,58.40 L81.82,61.46 M58.40,70.42 L61.30,81.26 M54.00,71.00 L54.00,81.40 M41.98,66.02 L34.83,73.17 M39.28,62.50 L30.26,67.70" fill="none" stroke="#EBFCFF" stroke-opacity="1.0" stroke-width="3" stroke-linecap="round"/>
+    <path d="M54,40.1 A13.9,13.9 0 1 1 53.99,40.1" fill="none" stroke="#38E8FF" stroke-opacity="0.541" stroke-width="2" stroke-linecap="round"/>
+    <path d="M54,46.5 A7.5,7.5 0 1 1 53.99,46.5" fill="#38E8FF" fill-opacity="0.902"/>
+    <path d="M54,50.4 A3.6,3.6 0 1 1 53.99,50.4" fill="#EBFCFF" fill-opacity="1.0"/>
+  </g>
+  <g font-family="'Segoe UI', 'Helvetica Neue', Roboto, Arial, sans-serif">
+    <text x="610" y="190" font-size="104" font-weight="700" letter-spacing="10" fill="url(#title)">FRIDAY</text>
+    <text x="616" y="246" font-size="30" fill="#BFEFFA" fill-opacity="0.9">A JARVIS-style voice assistant for Android</text>
+    <text x="616" y="300" font-size="18" letter-spacing="3" fill="#38E8FF" fill-opacity="0.75">WAKE WORD · VOICE ID · PHONE CONTROL · WEB SEARCH</text>
+  </g>
+  <rect x="0.5" y="0.5" width="1279" height="419" rx="24" fill="none" stroke="#38E8FF" stroke-opacity="0.25"/>
+</svg>

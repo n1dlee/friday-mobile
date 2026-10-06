@@ -1,0 +1,5 @@
+-keepattributes *Annotation*
+-keep class com.friday.ai.data.remote.dto.** { *; }
+-keep class com.friday.ai.data.local.entity.** { *; }
+-dontwarn okhttp3.**
+-dontwarn retrofit2.**

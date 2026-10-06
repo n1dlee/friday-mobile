@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Mirrors BackgroundDark in ui/theme/Color.kt. -->
+    <color name="friday_background">#04070A</color>
+    <color name="friday_cyan">#38E8FF</color>
+</resources>

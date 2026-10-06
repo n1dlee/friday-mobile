@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="160" height="160" role="img" aria-label="Friday">
+  <defs>
+    <radialGradient id="bloom" cx="54" cy="54" r="46" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0E7C93" stop-opacity="0.24"/>
+      <stop offset="0.55" stop-color="#0E7C93" stop-opacity="0.08"/>
+      <stop offset="1" stop-color="#04070A" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="1.6" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <clipPath id="r"><rect width="108" height="108" rx="26"/></clipPath>
+  </defs>
+  <g clip-path="url(#r)">
+    <rect width="108" height="108" fill="#04070A"/>
+    <rect width="108" height="108" fill="url(#bloom)"/>
+    <g filter="url(#soft)">
+    <path d="M83.00,54.00 L86.50,54.00 M54.00,83.00 L54.00,86.50 M25.00,54.00 L21.50,54.00 M54.00,25.00 L54.00,21.50" fill="none" stroke="#38E8FF" stroke-opacity="0.353" stroke-width="2" stroke-linecap="round"/>
+    <path d="M54.00,37.00 L54.00,30.82 M68.72,45.50 L75.87,41.37 M70.42,49.60 L78.43,47.45 M68.72,62.50 L77.12,67.35 M66.02,66.02 L70.45,70.45 M62.50,68.72 L67.32,77.06 M49.60,70.42 L47.61,77.86 M45.50,68.72 L41.56,75.54 M37.58,58.40 L29.13,60.66 M37.00,54.00 L30.69,54.00 M37.58,49.60 L29.12,47.33 M39.28,45.50 L30.76,40.58 M41.98,41.98 L35.50,35.50 M45.50,39.28 L41.90,33.04 M49.60,37.58 L47.68,30.42" fill="none" stroke="#38E8FF" stroke-opacity="0.702" stroke-width="3" stroke-linecap="round"/>
+    <path d="M58.40,37.58 L61.11,27.47 M62.50,39.28 L68.80,28.37 M66.02,41.98 L74.27,33.73 M71.00,54.00 L82.31,54.00 M70.42,58.40 L81.82,61.46 M58.40,70.42 L61.30,81.26 M54.00,71.00 L54.00,81.40 M41.98,66.02 L34.83,73.17 M39.28,62.50 L30.26,67.70" fill="none" stroke="#EBFCFF" stroke-opacity="1.0" stroke-width="3" stroke-linecap="round"/>
+    <path d="M54,40.1 A13.9,13.9 0 1 1 53.99,40.1" fill="none" stroke="#38E8FF" stroke-opacity="0.541" stroke-width="2" stroke-linecap="round"/>
+    <path d="M54,46.5 A7.5,7.5 0 1 1 53.99,46.5" fill="#38E8FF" fill-opacity="0.902"/>
+    <path d="M54,50.4 A3.6,3.6 0 1 1 53.99,50.4" fill="#EBFCFF" fill-opacity="1.0"/>
+    </g>
+  </g>
+</svg>

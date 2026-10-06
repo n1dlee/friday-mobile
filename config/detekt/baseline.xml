@@ -1,0 +1,143 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>CyclomaticComplexMethod:CommandRouter.kt$CommandRouter$private fun routeOne(input: String): CommandResult</ID>
+    <ID>CyclomaticComplexMethod:CommandRouter.kt$CommandRouter$private fun routeDeviceControl(text: String): CommandResult?</ID>
+    <ID>CyclomaticComplexMethod:MediaControls.kt$MediaControls$fun perform(action: MediaAction, appHint: String?): String</ID>
+    <ID>CyclomaticComplexMethod:SettingsScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun SettingsScreen( onNavigateBack: () -&gt; Unit, onOpenDashboard: () -&gt; Unit = {}, viewModel: SettingsViewModel = koinViewModel() )</ID>
+    <ID>CyclomaticComplexMethod:VoiceEnroller.kt$VoiceEnroller$suspend fun recordOne(): FloatArray?</ID>
+    <ID>CyclomaticComplexMethod:WakeWordEngine.kt$WakeWordEngine$suspend fun startListening()</ID>
+    <ID>CyclomaticComplexMethod:WeatherCodes.kt$WeatherCodes$fun describe(code: Int, russian: Boolean): String</ID>
+    <ID>LongMethod:CommandRouter.kt$CommandRouter$private fun routeOne(input: String): CommandResult</ID>
+    <ID>LongMethod:FridayOverlayManager.kt$FridayOverlayManager$private fun createOverlay()</ID>
+    <ID>LongMethod:LazuriDashboardScreen.kt$private fun DrawScope.drawBranch( node: LazuriGraph.Node, centre: Offset, depth: Int, baseRadius: Float, scale: Float, expanded: Set&lt;String&gt;, colors: NodeColors, hitTargets: MutableList&lt;Triple&lt;LazuriGraph.Node, Offset, Float&gt;&gt;, startAngle: Float = -Math.PI.toFloat() / 2f, sweep: Float = (2 * Math.PI).toFloat() )</ID>
+    <ID>LongMethod:WakeWordEngine.kt$WakeWordEngine$suspend fun startListening()</ID>
+    <ID>LongParameterList:LazuriApiService.kt$LazuriApiService$( baseUrl: String, apiKey: String, role: String, content: String, sourceDeviceId: String?, sessionId: String? = null, metadata: Map&lt;String, String&gt;? = null )</ID>
+    <ID>LongParameterList:LazuriDashboardScreen.kt$( node: LazuriGraph.Node, centre: Offset, depth: Int, baseRadius: Float, scale: Float, expanded: Set&lt;String&gt;, colors: NodeColors, hitTargets: MutableList&lt;Triple&lt;LazuriGraph.Node, Offset, Float&gt;&gt;, startAngle: Float = -Math.PI.toFloat() / 2f, sweep: Float = (2 * Math.PI).toFloat() )</ID>
+    <ID>LongParameterList:LazuriGraph.kt$LazuriGraph$( children: List&lt;Node&gt;, centreX: Float, centreY: Float, ringRadius: Float, nodeRadius: Float, startAngle: Float = -Math.PI.toFloat() / 2f, sweep: Float = (2 * Math.PI).toFloat() )</ID>
+    <ID>LoopWithTooManyJumpStatements:CommandRouter.kt$CommandRouter$for</ID>
+    <ID>LoopWithTooManyJumpStatements:ErrandWatchWorker.kt$ErrandWatchWorker$for</ID>
+    <ID>LoopWithTooManyJumpStatements:OfflineCommandRecognizer.kt$OfflineCommandRecognizer$while</ID>
+    <ID>LoopWithTooManyJumpStatements:VoiceEnroller.kt$VoiceEnroller$while</ID>
+    <ID>LoopWithTooManyJumpStatements:WakeWordEngine.kt$WakeWordEngine$while</ID>
+    <ID>MagicNumber:AppLauncher.kt$AppLauncher$1000L</ID>
+    <ID>MagicNumber:AppLauncher.kt$AppLauncher$120</ID>
+    <ID>MagicNumber:AppLauncher.kt$AppLauncher$5</ID>
+    <ID>MagicNumber:AppLauncher.kt$AppLauncher$60</ID>
+    <ID>MagicNumber:AssistantRepositoryImpl.kt$AssistantRepositoryImpl$20</ID>
+    <ID>MagicNumber:BriefComposer.kt$BriefComposer$10</ID>
+    <ID>MagicNumber:BriefComposer.kt$BriefComposer$100</ID>
+    <ID>MagicNumber:BriefComposer.kt$BriefComposer$11</ID>
+    <ID>MagicNumber:BriefComposer.kt$BriefComposer$14</ID>
+    <ID>MagicNumber:BriefComposer.kt$BriefComposer$3</ID>
+    <ID>MagicNumber:BriefComposer.kt$BriefComposer$4</ID>
+    <ID>MagicNumber:CommandRouter.kt$CommandRouter$100</ID>
+    <ID>MagicNumber:CommandRouter.kt$CommandRouter$3</ID>
+    <ID>MagicNumber:CommandRouter.kt$CommandRouter$60</ID>
+    <ID>MagicNumber:ContactMatcher.kt$ContactMatcher$3</ID>
+    <ID>MagicNumber:CorrectionDetector.kt$CorrectionDetector$3</ID>
+    <ID>MagicNumber:DateTimeParser.kt$DateTimeParser$12</ID>
+    <ID>MagicNumber:DateTimeParser.kt$DateTimeParser$14</ID>
+    <ID>MagicNumber:DateTimeParser.kt$DateTimeParser$23</ID>
+    <ID>MagicNumber:DateTimeParser.kt$DateTimeParser$24</ID>
+    <ID>MagicNumber:DateTimeParser.kt$DateTimeParser$3</ID>
+    <ID>MagicNumber:DateTimeParser.kt$DateTimeParser$59</ID>
+    <ID>MagicNumber:DateTimeParser.kt$DateTimeParser$60</ID>
+    <ID>MagicNumber:DeviceController.kt$DeviceController$100</ID>
+    <ID>MagicNumber:DeviceController.kt$DeviceController$40</ID>
+    <ID>MagicNumber:DeviceController.kt$DeviceController$50</ID>
+    <ID>MagicNumber:EdgeTtsProtocol.kt$EdgeTtsProtocol$0xFF</ID>
+    <ID>MagicNumber:EdgeTtsProtocol.kt$EdgeTtsProtocol$1000L</ID>
+    <ID>MagicNumber:EdgeTtsProtocol.kt$EdgeTtsProtocol$10_000_000L</ID>
+    <ID>MagicNumber:EdgeTtsProtocol.kt$EdgeTtsProtocol$300L</ID>
+    <ID>MagicNumber:EdgeTtsProtocol.kt$EdgeTtsProtocol$8</ID>
+    <ID>MagicNumber:EdgeTtsSpeaker.kt$EdgeTtsSpeaker.&lt;no name provided&gt;$1000</ID>
+    <ID>MagicNumber:EdgeTtsSpeaker.kt$EdgeTtsSpeaker.&lt;no name provided&gt;$403</ID>
+    <ID>MagicNumber:ErrandPlaces.kt$ErrandPlaces$6_371_000.0</ID>
+    <ID>MagicNumber:EventMatcher.kt$EventMatcher$10</ID>
+    <ID>MagicNumber:EventMatcher.kt$EventMatcher$40</ID>
+    <ID>MagicNumber:FileAnalyzer.kt$FileAnalyzer$8000</ID>
+    <ID>MagicNumber:FridayMemory.kt$FridayMemory$3</ID>
+    <ID>MagicNumber:FridayMemory.kt$FridayMemory$30</ID>
+    <ID>MagicNumber:FridayMemory.kt$FridayMemory$50</ID>
+    <ID>MagicNumber:FridayMemory.kt$FridayMemory$60</ID>
+    <ID>MagicNumber:GroqApiService.kt$GroqApiService$401</ID>
+    <ID>MagicNumber:GroqApiService.kt$GroqApiService$4096</ID>
+    <ID>MagicNumber:GroqApiService.kt$GroqApiService$429</ID>
+    <ID>MagicNumber:GroqApiService.kt$GroqApiService$503</ID>
+    <ID>MagicNumber:GroqApiService.kt$GroqApiService.Companion$120</ID>
+    <ID>MagicNumber:GroqApiService.kt$GroqApiService.Companion$30</ID>
+    <ID>MagicNumber:LazuriApiService.kt$LazuriApiService.Companion$10</ID>
+    <ID>MagicNumber:LazuriApiService.kt$LazuriApiService.Companion$5</ID>
+    <ID>MagicNumber:LazuriGraph.kt$LazuriGraph$0.001f</ID>
+    <ID>MagicNumber:LazuriGraph.kt$LazuriGraph$0.40f</ID>
+    <ID>MagicNumber:LazuriGraph.kt$LazuriGraph$0.48f</ID>
+    <ID>MagicNumber:LazuriGraph.kt$LazuriGraph$0.62f</ID>
+    <ID>MagicNumber:LazuriGraph.kt$LazuriGraph$4f</ID>
+    <ID>MagicNumber:MorningBriefWorker.kt$MorningBriefWorker$80</ID>
+    <ID>MagicNumber:NearbyPlacesService.kt$NearbyPlacesService.Companion$10</ID>
+    <ID>MagicNumber:NearbyPlacesService.kt$NearbyPlacesService.Companion$40</ID>
+    <ID>MagicNumber:OfflineCommandRecognizer.kt$OfflineCommandRecognizer$1000L</ID>
+    <ID>MagicNumber:OfflineCommandRecognizer.kt$OfflineCommandRecognizer$4096</ID>
+    <ID>MagicNumber:ProactiveBriefService.kt$ProactiveBriefService$1000L</ID>
+    <ID>MagicNumber:ProactiveBriefService.kt$ProactiveBriefService$23</ID>
+    <ID>MagicNumber:ProactiveBriefService.kt$ProactiveBriefService$24</ID>
+    <ID>MagicNumber:ProactiveBriefService.kt$ProactiveBriefService$59</ID>
+    <ID>MagicNumber:ProactiveBriefService.kt$ProactiveBriefService$60</ID>
+    <ID>MagicNumber:ScreenAnalyzer.kt$ScreenAnalyzer$300</ID>
+    <ID>MagicNumber:ScreenAnalyzer.kt$ScreenAnalyzer.Companion$70</ID>
+    <ID>MagicNumber:SessionSummarizer.kt$SessionSummarizer$300</ID>
+    <ID>MagicNumber:SettingsScreens.kt$SettingsScreens$5</ID>
+    <ID>MagicNumber:SpeakerEmbedder.kt$SpeakerEmbedder$1024</ID>
+    <ID>MagicNumber:VoiceCalibrator.kt$VoiceCalibrator$0.12</ID>
+    <ID>MagicNumber:VoiceCalibrator.kt$VoiceCalibrator$0.15</ID>
+    <ID>MagicNumber:VoiceCalibrator.kt$VoiceCalibrator$1000.0</ID>
+    <ID>MagicNumber:VoiceCalibrator.kt$VoiceCalibrator$1000L</ID>
+    <ID>MagicNumber:VoiceCalibrator.kt$VoiceCalibrator$2.5</ID>
+    <ID>MagicNumber:VoiceCalibrator.kt$VoiceCalibrator$40.0</ID>
+    <ID>MagicNumber:VoiceCalibrator.kt$VoiceCalibrator$4096</ID>
+    <ID>MagicNumber:VoiceCalibrator.kt$VoiceCalibrator$50.0</ID>
+    <ID>MagicNumber:VoiceCalibrator.kt$VoiceCalibrator$800.0</ID>
+    <ID>MagicNumber:VoiceEnroller.kt$VoiceEnroller$1000</ID>
+    <ID>MagicNumber:VoiceEnroller.kt$VoiceEnroller$4096</ID>
+    <ID>MagicNumber:VoiceProfile.kt$VoiceProfile$3</ID>
+    <ID>MagicNumber:VoiceProfile.kt$VoiceProfile$4</ID>
+    <ID>MagicNumber:VoskModelManager.kt$VoskModelManager$100</ID>
+    <ID>MagicNumber:VoskModelManager.kt$VoskModelManager$30_000</ID>
+    <ID>MagicNumber:VoskModelManager.kt$VoskModelManager$60_000</ID>
+    <ID>MagicNumber:VoskModelManager.kt$VoskModelManager$8192</ID>
+    <ID>MagicNumber:WakeWordEngine.kt$WakeWordEngine$1000</ID>
+    <ID>MagicNumber:WakeWordEngine.kt$WakeWordEngine$4096</ID>
+    <ID>MagicNumber:WeatherApiService.kt$WeatherApiService$7</ID>
+    <ID>MagicNumber:WeatherApiService.kt$WeatherApiService.Companion$12</ID>
+    <ID>MagicNumber:WeatherApiService.kt$WeatherApiService.Companion$8</ID>
+    <ID>MagicNumber:WhisperTranscriber.kt$WhisperTranscriber$0xFF</ID>
+    <ID>MagicNumber:WhisperTranscriber.kt$WhisperTranscriber$16</ID>
+    <ID>MagicNumber:WhisperTranscriber.kt$WhisperTranscriber$24</ID>
+    <ID>MagicNumber:WhisperTranscriber.kt$WhisperTranscriber$36</ID>
+    <ID>MagicNumber:WhisperTranscriber.kt$WhisperTranscriber$5000.0</ID>
+    <ID>MagicNumber:WhisperTranscriber.kt$WhisperTranscriber$8</ID>
+    <ID>NestedBlockDepth:AppLauncher.kt$AppLauncher$fun makeCall(target: String): String</ID>
+    <ID>NestedBlockDepth:CalendarWriter.kt$CalendarWriter$fun upcomingEvents(fromMillis: Long = System.currentTimeMillis(), limit: Int = 25): List&lt;CalendarEvent&gt;</ID>
+    <ID>NestedBlockDepth:CalendarWriter.kt$CalendarWriter$private fun findWritableCalendarId(): Long?</ID>
+    <ID>NestedBlockDepth:ContactsReader.kt$ContactsReader$fun loadContacts(): List&lt;Contact&gt;</ID>
+    <ID>NestedBlockDepth:EdgeTtsProtocol.kt$EdgeTtsProtocol$fun audioPayloadStart(data: ByteArray): Int</ID>
+    <ID>NestedBlockDepth:VoskModelManager.kt$VoskModelManager$private fun downloadFile(urlStr: String, target: File)</ID>
+    <ID>NestedBlockDepth:VoskModelManager.kt$VoskModelManager$private fun extractZip(zipFile: File, targetDir: File)</ID>
+    <ID>ReturnCount:CommandRouter.kt$CommandRouter$private fun routeOne(input: String): CommandResult</ID>
+    <ID>ReturnCount:ContactMatcher.kt$ContactMatcher$private fun score(queryStems: Set&lt;String&gt;, rawQuery: String, contact: Contact): Int</ID>
+    <ID>ReturnCount:ConversationControl.kt$ConversationControl$fun isFarewell(text: String): Boolean</ID>
+    <ID>ReturnCount:CorrectionDetector.kt$CorrectionDetector$fun detect(userText: String, assistantSaidSomething: Boolean): Correction?</ID>
+    <ID>ReturnCount:ErrandWatchWorker.kt$ErrandWatchWorker$override suspend fun doWork(): Result</ID>
+    <ID>ReturnCount:FactFilter.kt$FactFilter$fun isStorable(key: String, value: String): Boolean</ID>
+    <ID>ReturnCount:VoiceGate.kt$VoiceGate$fun onFrame(energy: Double): Decision</ID>
+    <ID>ReturnCount:VoskModelManager.kt$VoskModelManager$fun getModelPath(): String?</ID>
+    <ID>TooManyFunctions:AppLauncher.kt$AppLauncher</ID>
+    <ID>TooManyFunctions:ArcReactorView.kt$ArcReactorView : View</ID>
+    <ID>TooManyFunctions:ChatViewModel.kt$ChatViewModel : ViewModel</ID>
+    <ID>TooManyFunctions:FridayMemory.kt$FridayMemory</ID>
+    <ID>TooManyFunctions:FridayOverlayManager.kt$FridayOverlayManager</ID>
+    <ID>TooManyFunctions:SettingsViewModel.kt$SettingsViewModel : ViewModel</ID>
+  </CurrentIssues>
+</SmellBaseline>

@@ -1,0 +1,59 @@
+# Deviations from detekt's default rule set, each with its reason.
+# Anything not listed here runs at the default setting.
+
+naming:
+  FunctionNaming:
+    # Compose convention: @Composable functions are nouns in PascalCase.
+    ignoreAnnotated: ['Composable']
+
+style:
+  MagicNumber:
+    # Tests are literal expectations by design. UI and drawing code is full
+    # of design values (dp, colours, alphas) that a name would only obscure.
+    # In the last three files the numbers are the content: WMO weather codes,
+    # PCM bit layout, and the Kaldi filterbank specification.
+    excludes:
+      - '**/test/**'
+      - '**/ui/**'
+      - '**/FridayOverlayManager.kt'
+      - '**/WeatherCodes.kt'
+      - '**/PcmAudio.kt'
+      - '**/KaldiFbank.kt'
+    ignorePropertyDeclaration: true
+    ignoreCompanionObjectPropertyDeclaration: true
+    ignoreNamedArgument: true
+    ignoreEnums: true
+  ReturnCount:
+    # Guard clauses ("no permission → return") read better than nesting.
+    max: 3
+    excludeGuardClauses: true
+  LoopWithTooManyJumpStatements:
+    # `val m = p.find(t) ?: continue; return …` is the router's idiom.
+    maxJumpCount: 2
+
+complexity:
+  CyclomaticComplexMethod:
+    # A `when` over every command kind, one call per branch, is a lookup
+    # table, not branching logic; counting each entry as a path flags the
+    # command dispatchers for being complete.
+    ignoreSimpleWhenEntries: true
+  LongMethod:
+    # A Compose screen is one long declarative tree; splitting it for a
+    # line count makes it harder to read, not easier.
+    ignoreAnnotated: ['Composable']
+  LongParameterList:
+    ignoreAnnotated: ['Composable']
+
+exceptions:
+  TooGenericExceptionCaught:
+    # startActivity, ContentResolver, AudioRecord and MediaSession throw
+    # different unchecked exceptions per vendor and API level. The services
+    # catch broadly at those boundaries on purpose: a crashed foreground
+    # service is a deaf assistant. Swallowing is still caught by
+    # SwallowedException / EmptyCatchBlock.
+    active: false
+
+performance:
+  SpreadOperator:
+    # Its only use hands seven Room migrations over once, at startup.
+    active: false

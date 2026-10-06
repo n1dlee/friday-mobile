@@ -1,0 +1,10 @@
+# Text files are stored with LF; Windows scripts keep CRLF.
+* text=auto eol=lf
+*.bat text eol=crlf
+gradlew text eol=lf
+
+# Binary assets
+*.onnx binary
+*.jar binary
+*.png binary
+*.webp binary

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The arc reactor, frozen at one frame of the overlay's visualiser: a
+    circular equaliser around a hot core. Bar heights come from the same
+    travelling field the view uses, so the icon and the running app are
+    recognisably the same object. Everything stays inside r=33 from centre so
+    no launcher mask clips it.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Cardinal ticks: the instrument tell. -->
+    <path
+        android:strokeColor="#5A38E8FF"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:pathData="M83.00,54.00 L86.50,54.00 M54.00,83.00 L54.00,86.50 M25.00,54.00 L21.50,54.00 M54.00,25.00 L54.00,21.50" />
+
+    <!-- Quiet bars. -->
+    <path
+        android:strokeColor="#B338E8FF"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:pathData="M54.00,37.00 L54.00,30.82 M68.72,45.50 L75.87,41.37 M70.42,49.60 L78.43,47.45 M68.72,62.50 L77.12,67.35 M66.02,66.02 L70.45,70.45 M62.50,68.72 L67.32,77.06 M49.60,70.42 L47.61,77.86 M45.50,68.72 L41.56,75.54 M37.58,58.40 L29.13,60.66 M37.00,54.00 L30.69,54.00 M37.58,49.60 L29.12,47.33 M39.28,45.50 L30.76,40.58 M41.98,41.98 L35.50,35.50 M45.50,39.28 L41.90,33.04 M49.60,37.58 L47.68,30.42" />
+
+    <!-- Loud bars go white-hot, same rule as the running visualiser. -->
+    <path
+        android:strokeColor="#FFEBFCFF"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:pathData="M58.40,37.58 L61.11,27.47 M62.50,39.28 L68.80,28.37 M66.02,41.98 L74.27,33.73 M71.00,54.00 L82.31,54.00 M70.42,58.40 L81.82,61.46 M58.40,70.42 L61.30,81.26 M54.00,71.00 L54.00,81.40 M41.98,66.02 L34.83,73.17 M39.28,62.50 L30.26,67.70" />
+
+    <!-- Inner ring. -->
+    <path
+        android:strokeColor="#8A38E8FF"
+        android:strokeWidth="2"
+        android:pathData="M54,40.1 A13.9,13.9 0 1 1 53.99,40.1" />
+
+    <!-- Core: cyan body, near-white centre. -->
+    <path
+        android:fillColor="#E638E8FF"
+        android:pathData="M54,46.5 A7.5,7.5 0 1 1 53.99,46.5" />
+    <path
+        android:fillColor="#FFEBFCFF"
+        android:pathData="M54,50.4 A3.6,3.6 0 1 1 53.99,50.4" />
+</vector>

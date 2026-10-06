@@ -1,0 +1,65 @@
+# ─────────────────────────────────────────────────────────────
+#  Secrets — never committed
+# ─────────────────────────────────────────────────────────────
+
+# API keys and the Android SDK path (GROQ_API_KEY, sdk.dir, …)
+local.properties
+secrets.properties
+*.secrets.properties
+.env
+.env.*
+!.env.example
+
+# Signing keys: whoever holds one can publish updates as this app
+keystore/*.keystore
+*.keystore
+*.jks
+*.p12
+*.pfx
+*.pem
+*.key
+keystore.properties
+signing.properties
+
+# Google / Firebase / OAuth credentials
+google-services.json
+GoogleService-Info.plist
+client_secret*.json
+credentials*.json
+service-account*.json
+*.token
+token.json
+
+# ─────────────────────────────────────────────────────────────
+#  Build output
+# ─────────────────────────────────────────────────────────────
+build/
+.gradle/
+.kotlin/
+.externalNativeBuild/
+.cxx/
+captures/
+*.apk
+*.aab
+*.ap_
+*.dex
+output-metadata.json
+
+# ─────────────────────────────────────────────────────────────
+#  IDE, OS and tooling
+# ─────────────────────────────────────────────────────────────
+.idea/
+*.iml
+.vscode/
+.claude/
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log
+*.hprof
+
+# ─────────────────────────────────────────────────────────────
+#  Private working notes
+# ─────────────────────────────────────────────────────────────
+AUDIT.md
+Friday_project_review_and_android_porting_guide.md

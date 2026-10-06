@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        Dark base, not Light: the window is painted before Compose runs, and a
+        light default flashed white on every cold start.
+    -->
+    <style name="Theme.FridayMobile" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/friday_background</item>
+        <item name="android:colorBackground">@color/friday_background</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>
