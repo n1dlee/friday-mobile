@@ -23,12 +23,15 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -74,6 +77,8 @@ fun DiagnosticsScreen(
         onPauseOrDispose { }
     }
     val fix = rememberFixer(onOpenSettings) { viewModel.refresh() }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val current = rows
     val problems = current?.let(Diagnostics::problems)
 
@@ -89,6 +94,11 @@ fun DiagnosticsScreen(
                 navigation = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад", tint = OnBackground)
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { scope.launch { share(context, viewModel.report()) } }) {
+                        Icon(Icons.Filled.Share, contentDescription = "Поделиться отчётом", tint = ArcCyan)
                     }
                 }
             )
@@ -203,6 +213,15 @@ private fun permissionsFor(fix: Fix): Array<String> = when (fix) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) arrayOf(Manifest.permission.BLUETOOTH_CONNECT)
         else emptyArray()
     else -> emptyArray()
+}
+
+/** The system share sheet with the report as text: mail, a messenger, notes. */
+private fun share(context: Context, report: String) {
+    val send = Intent(Intent.ACTION_SEND)
+        .setType("text/plain")
+        .putExtra(Intent.EXTRA_SUBJECT, "Friday — отчёт диагностики")
+        .putExtra(Intent.EXTRA_TEXT, report)
+    context.startActivity(Intent.createChooser(send, "Отчёт диагностики").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
 }
 
 private fun Context.openAppDetails() = startActivity(
