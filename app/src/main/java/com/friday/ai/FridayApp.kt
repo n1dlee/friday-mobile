@@ -71,8 +71,11 @@ class FridayApp : Application() {
     }
 
     private fun prefillDefaults() {
-        val prefDao: UserPreferenceDao = org.koin.java.KoinJavaComponent.get(UserPreferenceDao::class.java)
         appScope.launch {
+            // What works right now, before the first request needs to know.
+            org.koin.java.KoinJavaComponent.get<com.friday.ai.core.DeviceContext>(
+                com.friday.ai.core.DeviceContext::class.java
+            ).refresh()
             // No key is built in: anything compiled into an APK can be read
             // back out of it. The user enters their own in Settings.
             // Groq retires models; picking from the live list every start

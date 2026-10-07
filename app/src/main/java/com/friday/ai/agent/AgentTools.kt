@@ -4,6 +4,8 @@
 package com.friday.ai.agent
 
 import com.friday.ai.core.AlarmRequest
+import com.friday.ai.core.capabilities.FridayCapabilities
+import com.friday.ai.core.capabilities.ToolRequirements
 import com.friday.ai.core.mail.MailCommands
 import com.friday.ai.data.remote.dto.FunctionSpec
 import com.friday.ai.data.remote.dto.ToolDefinition
@@ -208,10 +210,17 @@ object AgentTools {
             "The phone's tools are then given to you. Never say you cannot do a phone action without calling this."
     ) {}
 
-    /** The tools for [kit]; the light one is a few hundred tokens instead of two thousand. */
-    fun definitions(kit: ToolKit.Kit): List<ToolDefinition> = when (kit) {
-        ToolKit.Kit.FULL -> definitions
-        ToolKit.Kit.LIGHT -> definitions.filter { it.function.name in LIGHT_TOOLS } + escalate
+    /**
+     * The tools for [kit]; the light one is a few hundred tokens instead of
+     * two thousand. With [capabilities], tools that can't work right now
+     * (Gmail not connected, no notification access…) are left out entirely.
+     */
+    fun definitions(kit: ToolKit.Kit, capabilities: FridayCapabilities? = null): List<ToolDefinition> {
+        val kitTools = when (kit) {
+            ToolKit.Kit.FULL -> definitions
+            ToolKit.Kit.LIGHT -> definitions.filter { it.function.name in LIGHT_TOOLS } + escalate
+        }
+        return kitTools.filter { ToolRequirements.met(it.function.name, capabilities) }
     }
 
     /**

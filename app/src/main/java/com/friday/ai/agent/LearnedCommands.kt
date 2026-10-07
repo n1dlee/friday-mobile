@@ -32,7 +32,13 @@ import kotlinx.serialization.json.jsonPrimitive
 class LearnedCommands(
     private val prefs: UserPreferenceDao,
     private val scope: CoroutineScope,
-    private val clock: () -> Long = System::currentTimeMillis
+    private val clock: () -> Long = System::currentTimeMillis,
+    /**
+     * Whether a tool works right now. A phrase learned while Gmail was
+     * connected must not run once it isn't — it falls through to the model,
+     * which knows why.
+     */
+    private val available: (tool: String) -> Boolean = { true }
 ) {
 
     data class Shortcut(val tool: String, val args: JsonObject)
@@ -99,7 +105,7 @@ class LearnedCommands(
 
     /** The command learned for [text], interpreted for [now]; null if none. */
     fun command(text: String, now: LocalDateTime): CommandResult? {
-        val s = shortcuts[key(text)] ?: return null
+        val s = shortcuts[key(text)]?.takeIf { available(it.tool) } ?: return null
         return (AgentTools.interpret(s.tool, s.args, now) as? AgentTools.Call.Command)?.command
     }
 

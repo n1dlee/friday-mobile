@@ -78,7 +78,11 @@ val appModule = module {
 
     // Commands: one implementation shared by the chat and the voice service.
     single { com.friday.ai.core.AlarmSetter(androidContext()) }
-    single { com.friday.ai.core.DeviceContext(androidContext()) }
+    single {
+        com.friday.ai.core.DeviceContext(
+            androidContext(), com.friday.ai.core.capabilities.CapabilityProbe(androidContext(), get())
+        )
+    }
     single { com.friday.ai.core.people.PeopleDirectory(get(), get()) }
     single { com.friday.ai.core.people.Messenger(androidContext(), get(), get(), get()) }
     single { com.friday.ai.core.MediaSearch(androidContext(), get(), get()) }
@@ -99,12 +103,21 @@ val appModule = module {
         val writes = kotlinx.coroutines.CoroutineScope(
             kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO
         )
-        com.friday.ai.agent.LearnedCommands(get(), writes).apply { load() }
+        val device = get<com.friday.ai.core.DeviceContext>()
+        com.friday.ai.agent.LearnedCommands(
+            get(), writes,
+            available = { tool ->
+                com.friday.ai.core.capabilities.ToolRequirements.met(tool, device.capabilities.value)
+            }
+        ).apply { load() }
     }
     single {
         com.friday.ai.command.CommandExecutor(get(), get(), get(), get(), get(), messages = get(), learned = get())
     }
-    single { com.friday.ai.agent.FridayAgent(get(), get(), learned = get()) }
+    single {
+        val device = get<com.friday.ai.core.DeviceContext>()
+        com.friday.ai.agent.FridayAgent(get(), get(), learned = get(), capabilities = { device.refresh() })
+    }
     single { ProactiveBriefService(androidContext(), get(), get(), get()) }
     single { com.friday.ai.service.ModelCatalog(get(), get()) }
     single { SessionSummarizer(get(), get(), get(), get(), get()) }
@@ -142,6 +155,7 @@ val appModule = module {
             memory = get()
         )
     }
+    viewModel { com.friday.ai.ui.diagnostics.DiagnosticsViewModel(get()) }
     viewModel {
         LazuriDashboardViewModel(
             memoryDao = get(),

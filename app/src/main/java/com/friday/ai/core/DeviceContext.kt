@@ -6,7 +6,15 @@ import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.os.SystemClock
 import android.telephony.TelephonyManager
+import com.friday.ai.core.capabilities.CapabilityProbe
+import com.friday.ai.core.capabilities.FridayCapabilities
+import com.friday.ai.core.capabilities.ToolRequirements
 import com.friday.ai.core.people.Channel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.withContext
 import java.time.ZoneId
 import java.util.Locale
 
@@ -21,8 +29,21 @@ import java.util.Locale
  * Installed apps are grouped by the category each app declares about itself
  * (audio, video, maps, social), so a player Friday has never heard of still
  * counts as a player.
+ *
+ * It also owns the current [FridayCapabilities] snapshot — what works right
+ * now — which the prompt, the tool kits and the diagnostics screen all read,
+ * so they never disagree about it.
  */
-class DeviceContext(private val context: Context) {
+class DeviceContext(private val context: Context, private val probe: CapabilityProbe) {
+
+    private val _capabilities = MutableStateFlow<FridayCapabilities?>(null)
+
+    /** The last snapshot; null until the first [refresh], and then nothing is held back. */
+    val capabilities: StateFlow<FridayCapabilities?> = _capabilities.asStateFlow()
+
+    /** Takes a fresh snapshot. Cheap: permissions, package lookups and settings only. */
+    suspend fun refresh(): FridayCapabilities =
+        withContext(Dispatchers.IO) { probe.probe() }.also { _capabilities.value = it }
 
     /** An installed app the user can open. */
     data class App(val packageName: String, val label: String)
@@ -113,6 +134,7 @@ class DeviceContext(private val context: Context) {
             val messengers = apps.messengers.filter { it != Channel.SMS }.joinToString { it.label }.ifEmpty { "none" }
             append(" Installed — messengers: $messengers")
             append("; music: ${names(apps.music)}; video: ${names(apps.video)}; maps: ${names(apps.maps)}.")
+            capabilities.value?.let(ToolRequirements::unavailableNote)?.let { append(" ").append(it) }
         }
     }
 }

@@ -63,3 +63,8 @@ desktop.ini
 # ─────────────────────────────────────────────────────────────
 AUDIT.md
 Friday_project_review_and_android_porting_guide.md
+# Platform / Samsung roadmap
+00_OVERVIEW.md
+P[0-9]*.md
+IMPLEMENTATION_SEQUENCE_AND_CHECKLISTS.md
+SOURCE_MAP.md

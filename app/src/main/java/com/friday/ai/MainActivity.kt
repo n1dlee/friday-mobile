@@ -5,12 +5,18 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.lifecycle.lifecycleScope
+import com.friday.ai.core.DeviceContext
 import com.friday.ai.ui.navigation.FridayNavGraph
 import com.friday.ai.ui.theme.FridayTheme
+import kotlinx.coroutines.launch
+import org.koin.android.ext.android.inject
 
 class MainActivity : ComponentActivity() {
 
     var onWakeWordActivated: (() -> Unit)? = null
+
+    private val deviceContext: DeviceContext by inject()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -23,6 +29,16 @@ class MainActivity : ComponentActivity() {
                 FridayNavGraph(activity = this)
             }
         }
+    }
+
+    /**
+     * Back from a system settings screen, a permission may have changed:
+     * re-read what works, so the next request (and the diagnostics screen)
+     * reflects it.
+     */
+    override fun onResume() {
+        super.onResume()
+        lifecycleScope.launch { deviceContext.refresh() }
     }
 
     override fun onNewIntent(intent: Intent) {
