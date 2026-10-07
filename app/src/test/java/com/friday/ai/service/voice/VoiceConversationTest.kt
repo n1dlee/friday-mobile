@@ -10,6 +10,7 @@ import com.friday.ai.service.OfflineCommandRecognizer
 import com.friday.ai.service.WhisperTranscriber
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -267,5 +268,51 @@ class VoiceConversationTest {
 
         verify { overlay.showResult("API key not set", any()) }
         coVerify(exactly = 0) { transcriber.recordAndTranscribe(any(), any()) }
+    }
+
+    @Test
+    fun `a command said in the same breath as the name skips the greeting and keeps its first words`() = runTest {
+        val lead = FloatArray(16_000)
+        coEvery { transcriber.recordAndTranscribe(any(), any(), lead) } returns
+            VoiceTurn.Outcome.Heard("Пятница, включи фонарик.")
+        every { commands.route("включи фонарик.") } returns CommandResult.ToggleFlashlight
+        coEvery { commands.execute(CommandResult.ToggleFlashlight, true) } returns
+            CommandExecutor.Outcome.Reply("Фонарик включён")
+        val c = conversation()
+
+        c.onWake("пятница", continuing = true, lead = lead)
+        advanceUntilIdle()
+
+        assertEquals("no greeting, straight to the answer", "Фонарик включён", said.first().first)
+        coVerify { transcriber.recordAndTranscribe(any(), any(), lead) }
+        verify { commands.route("включи фонарик.") }
+    }
+
+    @Test
+    fun `only the name in one breath falls back to the greeting`() = runTest {
+        val lead = FloatArray(16_000)
+        coEvery { transcriber.recordAndTranscribe(any(), any(), lead) } returns VoiceTurn.Outcome.Heard("Пятница.")
+        val c = conversation()
+
+        c.onWake("пятница", continuing = true, lead = lead)
+        advanceUntilIdle()
+
+        assertEquals(1, said.size)
+        assertTrue("greeted", said.first().first.isNotBlank())
+    }
+
+    @Test
+    fun `the wake listener lets go of the microphone before a command is recorded`() = runTest {
+        hears(VoiceTurn.Outcome.Heard("пока"))
+        val c = conversation()
+
+        c.onWake("пятница")
+        advanceUntilIdle()
+        finishSpeaking(0)
+
+        coVerifyOrder {
+            wake.stop()
+            transcriber.recordAndTranscribe(any(), any())
+        }
     }
 }

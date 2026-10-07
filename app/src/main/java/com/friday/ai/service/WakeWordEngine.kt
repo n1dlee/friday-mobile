@@ -35,6 +35,9 @@ class WakeWordEngine {
          */
         private const val RECENT_AUDIO_SECONDS = 3
 
+        /** A frame this loud relative to the open gate still counts as speech. */
+        private const val CLOSE_RATIO = 0.55
+
     }
 
     enum class EngineState { IDLE, LOADING, LISTENING, PAUSED, ERROR }
@@ -44,15 +47,14 @@ class WakeWordEngine {
 
     private var model: Model? = null
     private var recognizer: Recognizer? = null
-    private var audioRecord: AudioRecord? = null
-    private var effects: AudioEffects? = null
-    private var detectedAudio: FloatArray = FloatArray(0)
     /**
      * Receives the text the wake call was matched in — so the reply can match
-     * its language — and the audio it was heard in, so the caller can check
-     * whose voice it was. The audio is 16 kHz mono at int16 scale.
+     * its language — the audio it was heard in, so the caller can check whose
+     * voice it was (16 kHz mono, int16 scale), and whether the speaker was
+     * still talking when the name was recognised: "Пятница, включи музыку"
+     * said in one breath.
      */
-    var onWakeWordDetected: ((String, FloatArray) -> Unit)? = null
+    var onWakeWordDetected: ((heard: String, audio: FloatArray, continuing: Boolean) -> Unit)? = null
     var energyThreshold: Double = DEFAULT_ENERGY_THRESHOLD
 
     fun loadModel(modelPath: String): Boolean {
@@ -88,6 +90,13 @@ class WakeWordEngine {
 
         var detected = false
         var detectedIn = ""
+        var continuing = false
+        var detectedAudio = FloatArray(0)
+        // Each listening session owns its recorder. A shared field let one
+        // session's teardown release the next session's microphone, which
+        // left Friday deaf after the first conversation.
+        var record: AudioRecord? = null
+        var effects: AudioEffects? = null
         // Everything heard in the last few seconds. On detection this is
         // handed over for speaker verification: the wake word is always
         // somewhere inside it, including the part that preceded the gate
@@ -98,12 +107,12 @@ class WakeWordEngine {
             // VOICE_RECOGNITION gets the device's echo cancellation, which
             // matters when this listens while Friday is speaking (barge-in) —
             // otherwise it hears the assistant's own voice through the speaker.
-            audioRecord = AudioRecord(
+            record = AudioRecord(
                 MediaRecorder.AudioSource.VOICE_RECOGNITION,
                 SAMPLE_RATE, CHANNEL, ENCODING, bufferSize
             )
 
-            if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
+            if (record.state != AudioRecord.STATE_INITIALIZED) {
                 Log.e(TAG, "AudioRecord failed to initialize")
                 _state.value = EngineState.ERROR
                 return@withContext
@@ -111,9 +120,9 @@ class WakeWordEngine {
 
             // The phone's own DSP. Road noise is exactly the stationary kind
             // hardware suppression removes, and none of it runs unless asked.
-            audioRecord?.audioSessionId?.let { effects = AudioEffects.attach(it) }
+            effects = AudioEffects.attach(record.audioSessionId)
 
-            audioRecord?.startRecording()
+            record.startRecording()
             _state.value = EngineState.LISTENING
             Log.i(TAG, "Silent wake word listening started")
 
@@ -127,7 +136,8 @@ class WakeWordEngine {
             val preRoll = ArrayDeque<ByteArray>(gate.preRollFrames)
 
             while (isActive && _state.value == EngineState.LISTENING) {
-                val read = audioRecord?.read(buffer, 0, buffer.size) ?: break
+                val read = record.read(buffer, 0, buffer.size)
+                if (read < 0) break
                 if (read <= 0) continue
 
                 val bytes = PcmAudio.toLittleEndian(buffer, read)
@@ -158,6 +168,8 @@ class WakeWordEngine {
                     detected = true
                     detectedIn = heardText(json)
                     detectedAudio = recent.snapshot()
+                    // Still loud this very frame: the command is following the name.
+                    continuing = PcmAudio.rms(buffer, read) > gate.effectiveThreshold * CLOSE_RATIO
                     break
                 }
             }
@@ -167,20 +179,21 @@ class WakeWordEngine {
             // Release the microphone before anyone else is told they may use
             // it — otherwise the command recorder races this teardown and can
             // fail to open the mic at all.
-            stopAudioRecord()
+            effects?.release()
+            record.stopAndRelease(TAG)
         }
 
         if (detected) {
             _state.value = EngineState.PAUSED
             recognizer?.reset()
-            Log.i(TAG, "Wake word detected; microphone released, handing over")
-            onWakeWordDetected?.invoke(detectedIn, detectedAudio)
+            Log.i(TAG, "Wake word detected (continuing=$continuing); microphone released, handing over")
+            onWakeWordDetected?.invoke(detectedIn, detectedAudio, continuing)
         }
     }
 
+    /** Ends the listening loop; it releases its own microphone as it leaves. */
     fun pause() {
         _state.value = EngineState.PAUSED
-        stopAudioRecord()
     }
 
     fun resume() {
@@ -189,21 +202,12 @@ class WakeWordEngine {
 
     fun destroy() {
         _state.value = EngineState.IDLE
-        stopAudioRecord()
         try {
             recognizer?.close()
             model?.close()
         } catch (_: Exception) {}
         recognizer = null
         model = null
-    }
-
-    private fun stopAudioRecord() {
-        // Before the AudioRecord: an effect outliving its session leaks.
-        effects?.release()
-        effects = null
-        audioRecord.stopAndRelease(TAG)
-        audioRecord = null
     }
 
     /**

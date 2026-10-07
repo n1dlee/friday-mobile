@@ -8,6 +8,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -31,8 +32,12 @@ class WakeListener(
         const val IDLE_STATUS = "Listening for \"Friday\""
     }
 
-    /** Called with the words the wake call was heard in, once the owner is confirmed. */
-    var onWake: ((heard: String) -> Unit)? = null
+    /**
+     * Called once the owner is confirmed, with the words the call was heard
+     * in, whether they were still speaking, and the audio up to that point
+     * (for a command said in the same breath).
+     */
+    var onWake: ((heard: String, continuing: Boolean, audio: FloatArray) -> Unit)? = null
 
     /** Where the on-device model lives; the offline recogniser shares it. */
     var modelPath: String? = null
@@ -64,18 +69,33 @@ class WakeListener(
             return@withContext false
         }
         energyThreshold?.let { e.energyThreshold = it }
-        e.onWakeWordDetected = { heard, audio -> onDetected(heard, audio) }
+        e.onWakeWordDetected = { heard, audio, continuing -> onDetected(heard, audio, continuing) }
         engine = e
         modelPath = path
         true
     }
 
-    /** Starts (or restarts) listening without touching the status line. */
+    /**
+     * Starts (or restarts) listening without touching the status line. The
+     * previous session is stopped and waited for first: two sessions at once
+     * meant two recorders fighting over the microphone.
+     */
     fun listen() {
         val e = engine ?: return
-        e.resume()
-        job?.cancel()
-        job = scope.launch(io) { e.startListening() }
+        val previous = job
+        job = scope.launch(io) {
+            e.pause()
+            previous?.cancelAndJoin()
+            e.resume()
+            e.startListening()
+        }
+    }
+
+    /** Stops listening and waits until the microphone is free for someone else. */
+    suspend fun stop() {
+        engine?.pause()
+        job?.cancelAndJoin()
+        job = null
     }
 
     /** Back to idle listening after a conversation. */
@@ -91,12 +111,12 @@ class WakeListener(
     }
 
     /** Runs on the recording thread: the speaker check is heavy and must stay off main. */
-    private fun onDetected(heard: String, audio: FloatArray) {
+    private fun onDetected(heard: String, audio: FloatArray, continuing: Boolean) {
         if (!gate.admitsWake(audio)) {
             Log.i(TAG, "Wake word ignored: not the enrolled speaker")
             resume()
             return
         }
-        onWake?.invoke(heard)
+        onWake?.invoke(heard, continuing, audio)
     }
 }

@@ -35,7 +35,7 @@ class WhisperTranscriber(
          * Bixby; ~900ms is close to what mainstream assistants use while
          * still tolerating a brief mid-sentence pause.
          */
-        private const val DEFAULT_SILENCE_DURATION_MS = 500L
+        private const val DEFAULT_SILENCE_DURATION_MS = 800L
 
         /** A follow-up turn with no wake word: wait a bit for the user to start. */
         private const val LEAD_IN_SILENCE_MS = 4000L
@@ -86,7 +86,9 @@ class WhisperTranscriber(
      */
     suspend fun recordAndTranscribe(
         apiKey: String,
-        speakerCheck: ((FloatArray) -> Boolean)? = null
+        speakerCheck: ((FloatArray) -> Boolean)? = null,
+        /** Audio already heard (int16 scale), put in front: a command that began in the same breath as the name. */
+        lead: FloatArray? = null
     ): VoiceTurn.Outcome = withContext(Dispatchers.IO) {
         val bufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL, ENCODING)
             .coerceAtLeast(MIN_BUFFER_BYTES)
@@ -105,7 +107,9 @@ class WhisperTranscriber(
             }
             effects = AudioEffects.attach(audioRecord.audioSessionId)
 
-            val capture = capture(audioRecord, ShortArray(bufferSize / 2), keepVoice = speakerCheck != null)
+            val capture = capture(
+                audioRecord, ShortArray(bufferSize / 2), keepVoice = speakerCheck != null, lead = lead
+            )
             if (!capture.usable) VoiceTurn.Outcome.Nothing
             else transcribe(apiKey, capture, speakerCheck)
         } catch (e: Exception) {
@@ -127,12 +131,13 @@ class WhisperTranscriber(
      * Decides when an utterance has started and ended, chunk by chunk.
      * Separate from the recording loop so the loop only moves audio around.
      */
-    private inner class Endpointer(private val chunkMs: Long) {
-        var hasSpeech = false
+    private inner class Endpointer(private val chunkMs: Long, leadMs: Long = 0) {
+        /** With a lead the speaker is already mid-sentence: only the trailing silence is awaited. */
+        var hasSpeech = leadMs > 0
             private set
         private var totalMs = 0L
         private var silenceMs = 0L
-        private var speechMs = 0L
+        private var speechMs = leadMs
 
         val usable: Boolean get() = hasSpeech && speechMs >= MIN_SPEECH_MS
 
@@ -153,12 +158,22 @@ class WhisperTranscriber(
         }
     }
 
-    private suspend fun capture(record: AudioRecord, buffer: ShortArray, keepVoice: Boolean): Capture {
+    private suspend fun capture(
+        record: AudioRecord,
+        buffer: ShortArray,
+        keepVoice: Boolean,
+        lead: FloatArray? = null
+    ): Capture {
         val pcm = mutableListOf<ByteArray>()
         // Kept only when someone will check the speaker; starts a little
         // before the first loud frame so the onset of the voice is in it.
         val voice = if (keepVoice) RollingAudio(MAX_RECORD_SAMPLES) else null
-        val endpointer = Endpointer(chunkMs = buffer.size * MS_PER_SECOND / SAMPLE_RATE)
+        val leadMs = (lead?.size ?: 0) * MS_PER_SECOND / SAMPLE_RATE
+        val endpointer = Endpointer(chunkMs = buffer.size * MS_PER_SECOND / SAMPLE_RATE, leadMs = leadMs)
+        lead?.let(::toPcm16)?.let { samples ->
+            pcm.add(PcmAudio.toLittleEndian(samples, samples.size))
+            voice?.append(samples, samples.size)
+        }
 
         record.startRecording()
         withContext(Dispatchers.Main) { listener?.onRecordingStarted() }
@@ -172,12 +187,7 @@ class WhisperTranscriber(
             onLevel?.invoke(normaliseLevel(energy))
             val loud = energy > silenceThreshold
 
-            if (voice != null) {
-                // Before speech only the last few hundred ms are worth
-                // keeping; a long silent lead-in dilutes the embedding.
-                if (!endpointer.hasSpeech && !loud && voice.size > VOICE_PRE_ROLL) voice.clear()
-                voice.append(buffer, read)
-            }
+            voice?.let { keepForCheck(it, buffer, read, speaking = endpointer.hasSpeech || loud) }
 
             val startedNow = loud && !endpointer.hasSpeech
             val more = endpointer.keepGoing(loud)
@@ -188,6 +198,19 @@ class WhisperTranscriber(
         record.stop()
         withContext(Dispatchers.Main) { listener?.onRecordingFinished() }
         return Capture(pcm, voice?.snapshot(), endpointer.usable)
+    }
+
+    /**
+     * Before speech only the last few hundred ms are worth keeping for the
+     * speaker check; a long silent lead-in dilutes the embedding.
+     */
+    private fun keepForCheck(voice: RollingAudio, buffer: ShortArray, read: Int, speaking: Boolean) {
+        if (!speaking && voice.size > VOICE_PRE_ROLL) voice.clear()
+        voice.append(buffer, read)
+    }
+
+    private fun toPcm16(audio: FloatArray): ShortArray = ShortArray(audio.size) {
+        audio[it].toInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
     }
 
     /**

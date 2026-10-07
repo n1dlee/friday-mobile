@@ -99,6 +99,19 @@ object WakePhrases {
 
     enum class Language { RUSSIAN, ENGLISH }
 
+    private val leadingCall = Regex(
+        "^\\s*(?:(?:окей|оке|ок|привет|слушай|эй|hey|ok|okay|hi)[\\s,!.]+)?" +
+            "(?:пятниц\\p{L}*|пятнец\\p{L}*|фрайд\\p{L}*|фрэйди|фрейди|friday)[\\s,!.:;—–-]*",
+        RegexOption.IGNORE_CASE
+    )
+
+    /**
+     * [transcript] without the call in front: "Пятница, включи музыку" →
+     * "включи музыку". When the command was said in the same breath as the
+     * name, the recording starts with the name too.
+     */
+    fun stripCall(transcript: String): String = transcript.replaceFirst(leadingCall, "").trim()
+
     private fun normalize(heard: String): List<String> =
         heard.lowercase()
             .split(Regex("[^\\p{L}\\p{N}]+"))

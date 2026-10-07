@@ -270,7 +270,7 @@ class SettingsViewModel(
             _model.value = catalog.model(com.friday.ai.core.GroqModels.Role.CHAT)
             _models.value = GroqModels.choicesForChat(catalog.available())
             _wakeWordEnabled.value = prefDao.get("wake_word_enabled") == "true"
-            _isCalibrated.value = prefDao.get("wake_threshold") != null
+            _isCalibrated.value = prefDao.get(VoiceCalibrator.PREF_WAKE) != null
             _lazuriUrl.value = prefDao.get("lazuri_base_url") ?: ""
             _lazuriApiKey.value = prefDao.get("lazuri_api_key") ?: ""
             _lazuriStatus.value = if (memory.isLazuriConfigured()) LazuriStatus.CONNECTED else LazuriStatus.DISCONNECTED
@@ -389,8 +389,8 @@ class SettingsViewModel(
             val result = calibrator.calibrate()
             _calibrationResult.value = result
 
-            prefDao.set(UserPreferenceEntity("wake_threshold", result.wakeWordThreshold.toString()))
-            prefDao.set(UserPreferenceEntity("whisper_threshold", result.whisperThreshold.toString()))
+            prefDao.set(UserPreferenceEntity(VoiceCalibrator.PREF_WAKE, result.wakeWordThreshold.toString()))
+            prefDao.set(UserPreferenceEntity(VoiceCalibrator.PREF_WHISPER, result.whisperThreshold.toString()))
             prefDao.set(UserPreferenceEntity("ambient_noise", result.ambientNoise.toString()))
             prefDao.set(UserPreferenceEntity("speech_energy", result.speechEnergy.toString()))
 
