@@ -88,6 +88,9 @@ class CommandRouter(private val now: () -> java.time.LocalDateTime = java.time.L
         "выключи|выруби|останов|прекрат|хватит|стоп|убери|заглуши|stop|turn off", RegexOption.IGNORE_CASE
     )
 
+    /** "… в <something>": possibly a player's name. */
+    private val inPlayer = Regex("\\s(?:в|во|на|in|on)\\s+\\p{L}{2,}", RegexOption.IGNORE_CASE)
+
     /** A pause said on its own needs no word for music: "пауза", "поставь на паузу". */
     private val barePause = Regex(
         "^(?:поставь\\s+на\\s+паузу|на\\s+паузу|пауза|сделай\\s+паузу|pause)[.!]*$", RegexOption.IGNORE_CASE
@@ -416,7 +419,11 @@ class CommandRouter(private val now: () -> java.time.LocalDateTime = java.time.L
             nowPlayingPattern.containsMatchIn(lower) -> CommandResult.NowPlaying
             barePause.matches(lower) -> CommandResult.MediaControl(MediaAction.PAUSE, null)
             !aboutMusic -> null
-            else -> mediaAction(lower)?.let { CommandResult.MediaControl(it, if (named != null) lower else null) }
+            // "в VK Музыке": a player the patterns don't know may still be installed,
+            // so the phrase goes along for the player to be found by its label.
+            else -> mediaAction(lower)?.let {
+                CommandResult.MediaControl(it, if (named != null || inPlayer.containsMatchIn(lower)) lower else null)
+            }
         }
     }
 

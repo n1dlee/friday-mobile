@@ -172,8 +172,10 @@ app/src/main/java/com/friday/ai
 git clone https://github.com/n1dlee/friday-mobile.git
 cd friday-mobile
 ./gradlew assembleDebug          # APK в app/build/outputs/apk/debug/
+./gradlew assembleRelease        # сжато R8, ~26 МБ, в app/build/outputs/apk/release/
 ./gradlew testDebugUnitTest      # unit-тесты
 ./gradlew detekt                 # статический анализ
+./gradlew verifyReleaseKeepRules # R8 сохранил классы, которые нативный код ищет по имени
 ```
 
 Для сборки секреты не нужны: ключ Groq вводится в настройках приложения, а не в сборку. Без `keystore/friday.keystore` APK подписывается debug-ключом вашего SDK (см. [keystore/README.md](keystore/README.md)).

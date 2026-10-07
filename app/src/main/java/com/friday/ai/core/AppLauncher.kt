@@ -19,6 +19,11 @@ class AppLauncher(
     private val calendarWriter: CalendarWriter
 ) {
 
+    private companion object {
+        /** How long a placed call may take to show up as one. */
+        const val CALL_WAIT_MS = 5_000L
+    }
+
     /**
      * The torch as the system reports it. A flag of our own went stale the
      * moment the user used the quick-settings tile, and "выключи фонарик"
@@ -136,7 +141,7 @@ class AppLauncher(
      * a messenger call suits better, is decided by
      * [com.friday.ai.core.people.Caller].
      */
-    fun dial(number: String, label: String): String {
+    suspend fun dial(number: String, label: String): String {
         return try {
             // ACTION_CALL places the call outright; ACTION_DIAL only fills the
             // dialer and waits for a tap, which isn't much use hands-free.
@@ -150,8 +155,20 @@ class AppLauncher(
                 data = Uri.parse("tel:${Uri.encode(number)}")
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
-            context.startActivity(intent)
-            if (canCallDirectly) "Calling $label" else "Ready to call $label"
+            if (!canCallDirectly) {
+                context.startActivity(intent)
+                return "Ready to call $label — the dialer is open"
+            }
+            // A placed call puts the audio system in call mode within seconds.
+            // Never sent twice: a second ACTION_CALL would be a second call.
+            val placed = HandOff.run(
+                send = { context.startActivity(intent) },
+                happened = { CallState.inCall(context) },
+                waitMs = CALL_WAIT_MS,
+                retry = false
+            )
+            if (placed == HandOff.Result.NOT_SEEN) "Asked the phone to call $label, but no call started"
+            else "Calling $label"
         } catch (e: SecurityException) {
             // Permission was revoked between the check and the call.
             Log.w("AppLauncher", "Direct call refused: ${e.message}")

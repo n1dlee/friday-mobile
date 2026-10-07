@@ -73,9 +73,9 @@ class VoiceConversationTest {
      * stops once only background work is left, so the conversation would
      * never run at all.
      */
-    private fun TestScope.conversation() = VoiceConversation(
+    private fun TestScope.conversation(inCall: () -> Boolean = { false }) = VoiceConversation(
         CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler)),
-        VoiceIO(overlay, speaker, transcriber, offline, wake, mockk(relaxed = true)),
+        VoiceIO(overlay, speaker, transcriber, offline, wake, mockk(relaxed = true), inCall = inCall),
         gate, commands, answers, session
     )
 
@@ -101,6 +101,26 @@ class VoiceConversationTest {
         coVerify(exactly = 0) { transcriber.recordAndTranscribe(any(), any()) }
 
         finishSpeaking(0)
+        coVerify(exactly = 1) { transcriber.recordAndTranscribe(any(), any()) }
+    }
+
+    @Test
+    fun `once a call starts Friday neither talks over it nor opens the microphone`() = runTest {
+        var callActive = false
+        hears(VoiceTurn.Outcome.Heard("позвони маме"), VoiceTurn.Outcome.Nothing)
+        every { commands.route("позвони маме") } returns CommandResult.PhoneCall("маме")
+        coEvery { commands.execute(CommandResult.PhoneCall("маме"), true) } answers {
+            callActive = true
+            CommandExecutor.Outcome.Reply("Звоню «Мама» в WhatsApp")
+        }
+        val c = conversation(inCall = { callActive })
+
+        c.onWake("пятница")
+        advanceUntilIdle()
+        finishSpeaking(0)
+
+        assertEquals("only the greeting is spoken", 1, said.size)
+        verify { overlay.showResult("Звоню «Мама» в WhatsApp", any()) }
         coVerify(exactly = 1) { transcriber.recordAndTranscribe(any(), any()) }
     }
 

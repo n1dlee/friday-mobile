@@ -72,6 +72,7 @@ class FridayApp : Application() {
 
     private fun prefillDefaults() {
         appScope.launch {
+            sealStoredKeys()
             // What works right now, before the first request needs to know.
             org.koin.java.KoinJavaComponent.get<com.friday.ai.core.DeviceContext>(
                 com.friday.ai.core.DeviceContext::class.java
@@ -84,5 +85,22 @@ class FridayApp : Application() {
                 com.friday.ai.service.ModelCatalog::class.java
             ).refresh()
         }
+    }
+
+    /**
+     * Encrypts API keys an older version stored in plain text. Overwriting a
+     * row leaves the old bytes in SQLite's free pages, so after sealing
+     * anything the file is rebuilt once to drop them.
+     */
+    private suspend fun sealStoredKeys() {
+        val prefs = org.koin.java.KoinJavaComponent.get<com.friday.ai.data.local.secure.SecurePreferenceDao>(
+            com.friday.ai.data.local.secure.SecurePreferenceDao::class.java
+        )
+        if (prefs.migrate() == 0) return
+        runCatching {
+            org.koin.java.KoinJavaComponent.get<com.friday.ai.data.local.FridayDatabase>(
+                com.friday.ai.data.local.FridayDatabase::class.java
+            ).openHelper.writableDatabase.execSQL("VACUUM")
+        }.onFailure { android.util.Log.w("FridayApp", "VACUUM after sealing keys failed: ${it.message}") }
     }
 }

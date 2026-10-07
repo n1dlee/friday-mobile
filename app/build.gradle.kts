@@ -211,3 +211,44 @@ configurations.matching { it.name == "detekt" }.configureEach {
         }
     }
 }
+
+/**
+ * Guards the R8 keep rules: classes that native code (JNI) looks up by name,
+ * or whose names we store, must come out of minification unrenamed. Without
+ * this, a dependency update that changes R8's view of them would build fine
+ * and crash on the phone — exactly what the release build did before the
+ * rules in proguard-rules.pro existed.
+ */
+val verifyReleaseKeepRules by tasks.registering {
+    group = "verification"
+    description = "Checks that JNI-reached and stored class names survive R8 in the release build."
+    dependsOn("minifyReleaseWithR8")
+    val mapping = layout.buildDirectory.file("outputs/mapping/release/mapping.txt")
+    inputs.file(mapping)
+    doLast {
+        val mustKeep = listOf(
+            // ONNX Runtime JNI (speaker verification)
+            "ai.onnxruntime.OrtEnvironment", "ai.onnxruntime.OrtSession", "ai.onnxruntime.OnnxTensor",
+            "ai.onnxruntime.OrtException", "ai.onnxruntime.TensorInfo",
+            // JNA + Vosk (wake word)
+            "com.sun.jna.Native", "com.sun.jna.Pointer", "com.sun.jna.Structure", "com.sun.jna.Memory",
+            "org.vosk.LibVosk", "org.vosk.Model", "org.vosk.Recognizer",
+            // libphonenumber metadata
+            "com.google.i18n.phonenumbers.PhoneNumberUtil",
+            // Names stored in the database
+            "com.friday.ai.domain.model.CommandResult\$SetAlarm",
+            "com.friday.ai.service.MorningBriefWorker", "com.friday.ai.service.ErrandWatchWorker"
+        )
+        val renamed = mapping.get().asFile.useLines { lines ->
+            lines.filter { !it.startsWith(" ") && it.contains(" -> ") }
+                .map { it.substringBefore(" -> ") to it.substringAfter(" -> ").removeSuffix(":") }
+                .filter { (from, to) -> from in mustKeep && from != to }
+                .toList()
+        }
+        check(renamed.isEmpty()) {
+            "R8 renamed classes that must keep their names: " +
+                renamed.joinToString { (from, to) -> "$from -> $to" } + ". See app/proguard-rules.pro."
+        }
+        logger.lifecycle("R8 keep rules OK: ${mustKeep.size} classes kept by name.")
+    }
+}
