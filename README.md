@@ -69,6 +69,9 @@ Announces callers, reads WhatsApp/Telegram/SMS aloud, and replies through the no
 ### 🌐 Knows what's current
 Web search via Groq's browser tool for news, prices and scores. Real weather from [Open-Meteo](https://open-meteo.com). The calculator handles arithmetic, not the model's head.
 
+### 🎛️ Modes you create by voice
+*"Create a rest mode: fully silent, Do Not Disturb, lowest brightness."* Friday works out the steps once and reads them back. After that, *"rest mode"* runs them with no model, *"turn off rest mode"* puts everything back, and they can run on a schedule. If you keep starting a mode at the same hour, Friday offers to do it for you.
+
 </td>
 </tr>
 </table>
@@ -83,6 +86,8 @@ Web search via Groq's browser tool for news, prices and scores. Real weather fro
 | *"Play Believer on Spotify"* · *"Stop the music"* · *"What's playing?"* | Search and play, pause, now-playing from the media session |
 | *"Who won the last World Cup?"* | Searches the web and answers with the source |
 | *"Volume to 50"* · *"Flashlight off"* · *"Open Bluetooth settings"* | Done on the phone directly, no model involved |
+| *"Create a sad mode: Spotify with sad songs"* → *"Sad mode"* → *"Turn off sad mode"* | Saves the mode and reads it back, runs it without the model, then pauses the music it started |
+| *"Start rest mode every day at 11 pm"* | Runs the mode by itself at that time and posts a quiet note of what it did |
 | *"Remind me tomorrow at 9 to call the doctor"* | Calendar event with a reminder |
 | *"Remind me to buy milk"* | Location-based errand: pings you near a shop |
 
@@ -194,8 +199,8 @@ No secrets are needed to build. Your Groq key goes into the app's Settings, not 
 - [x] Chats from notifications: read, reply, announce
 - [x] Encrypted key storage, diagnostics screen, verified hand-offs to other apps
 - [x] Move to a new phone: everything in one passphrase-encrypted file
-- [ ] Modes you create by voice ("create a sad mode: Spotify with sad songs"), with automatic undo
-- [ ] Routines triggered by NFC tags, time, the car's Bluetooth, home Wi-Fi
+- [x] Modes you create by voice ("create a sad mode: Spotify with sad songs"), with automatic undo, schedules and learned habits
+- [ ] Modes triggered by NFC tags, the car's Bluetooth, home Wi-Fi
 - [ ] Camera "what is this?", Health Connect
 
 ## 🤝 Contributing
