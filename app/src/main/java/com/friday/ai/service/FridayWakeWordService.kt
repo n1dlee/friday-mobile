@@ -45,6 +45,11 @@ class FridayWakeWordService : Service() {
     companion object {
         private const val TAG = "FridayWakeWord"
 
+        /** True while the service exists; read by diagnostics. */
+        @Volatile
+        var running = false
+            private set
+
         /** Where the enrolled voice profile lives. */
         const val PREF_VOICE_PROFILE = "voice_profile"
 
@@ -97,6 +102,7 @@ class FridayWakeWordService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        running = true
         notifier = ServiceNotifier(this)
         try {
             notifier.createChannel()
@@ -175,6 +181,7 @@ class FridayWakeWordService : Service() {
     }
 
     override fun onDestroy() {
+        running = false
         started = false
         if (::conversation.isInitialized) {
             wake.destroy()

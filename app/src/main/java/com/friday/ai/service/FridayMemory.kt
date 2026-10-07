@@ -42,8 +42,8 @@ class FridayMemory(
 
         private const val PREF_LAZURI_URL = "lazuri_base_url"
         private const val PREF_LAZURI_KEY = "lazuri_api_key"
-        private const val PREF_LAZURI_DEVICE_ID = "lazuri_device_id"
-        private const val PREF_LAZURI_ENABLED = "lazuri_enabled"
+        const val PREF_LAZURI_DEVICE_ID = "lazuri_device_id"
+        const val PREF_LAZURI_ENABLED = "lazuri_enabled"
 
         private const val PREF_SESSION_ID = "voice_session_id"
         private const val PREF_SESSION_LAST_ACTIVITY = "voice_session_last_activity"

@@ -15,6 +15,7 @@ import com.friday.ai.core.ScreenAnalyzer
 import com.friday.ai.ui.chat.ChatScreen
 import com.friday.ai.ui.chat.ChatViewModel
 import com.friday.ai.ui.dashboard.LazuriDashboardScreen
+import com.friday.ai.ui.diagnostics.DiagnosticsScreen
 import com.friday.ai.ui.settings.SettingsScreen
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
@@ -77,7 +78,18 @@ fun FridayNavGraph(activity: MainActivity) {
         composable("settings") {
             SettingsScreen(
                 onNavigateBack = { navController.popBackStack() },
-                onOpenDashboard = { navController.navigate("lazuri_dashboard") }
+                onOpenDashboard = { navController.navigate("lazuri_dashboard") },
+                onOpenDiagnostics = { navController.navigate("diagnostics") }
+            )
+        }
+        composable("diagnostics") {
+            DiagnosticsScreen(
+                viewModel = koinViewModel(),
+                onNavigateBack = { navController.popBackStack() },
+                onOpenSettings = {
+                    // Settings is where the screen is opened from; going "back" lands there.
+                    if (!navController.popBackStack("settings", inclusive = false)) navController.navigate("settings")
+                }
             )
         }
         composable("lazuri_dashboard") {

@@ -2,6 +2,8 @@ package com.friday.ai.agent
 
 import android.util.Log
 import com.friday.ai.command.CommandExecutor
+import com.friday.ai.core.capabilities.FridayCapabilities
+import com.friday.ai.core.capabilities.ToolRequirements
 import com.friday.ai.data.remote.ChatEvent
 import com.friday.ai.data.remote.GroqApiException
 import com.friday.ai.data.remote.GroqApiService
@@ -31,7 +33,9 @@ class FridayAgent(
     private val commands: CommandExecutor,
     private val now: () -> LocalDateTime = LocalDateTime::now,
     /** Where a phrase the model worked out is kept, to be carried out directly next time. */
-    private val learned: LearnedCommands? = null
+    private val learned: LearnedCommands? = null,
+    /** A fresh snapshot of what works right now; null means nothing is held back. */
+    private val capabilities: suspend () -> FridayCapabilities? = { null }
 ) {
 
     private companion object {
@@ -88,9 +92,10 @@ class FridayAgent(
         val languageNote = languageNote(said)
         // Small talk goes with the light kit; the phone's tools only when asked for.
         var kit = ToolKit.forText(said)
+        val caps = capabilities()
         val done = mutableListOf<Pair<ToolCall, Boolean>>()
         repeat(MAX_ROUNDS) { round ->
-            val tools = if (round == MAX_ROUNDS - 1) null else AgentTools.definitions(kit)
+            val tools = if (round == MAX_ROUNDS - 1) null else AgentTools.definitions(kit, caps)
             val calls = turn(settings, models, conversation, tools)
             if (calls == null) {
                 learnFrom(said, done)
@@ -104,7 +109,7 @@ class FridayAgent(
             }
             conversation += ApiMessage(role = "assistant", content = "", toolCalls = calls)
             calls.forEach { call ->
-                val (result, ok) = carryOut(call, russian)
+                val (result, ok) = unavailable(call, caps)?.let { it to false } ?: carryOut(call, russian)
                 done += call to ok
                 conversation += ApiMessage(role = "tool", content = result + languageNote, toolCallId = call.id)
             }
@@ -180,6 +185,18 @@ class FridayAgent(
      * Runs one tool and describes the outcome for the model, in plain words.
      * The flag says whether a command was actually carried out.
      */
+    /**
+     * Why [call] can't run right now, or null if it can. Unavailable tools
+     * aren't offered, but a model can still call one it saw earlier in the
+     * conversation.
+     */
+    private fun unavailable(call: ToolCall, caps: FridayCapabilities?): String? {
+        val gaps = caps?.let { ToolRequirements.missing(call.function.name, it) }.orEmpty()
+        if (gaps.isEmpty()) return null
+        return "Error: unavailable right now — ${gaps.joinToString { it.en }}. Nothing was done; " +
+            "tell the user what to enable."
+    }
+
     private suspend fun carryOut(call: ToolCall, russian: Boolean): Pair<String, Boolean> {
         val args = try {
             groqJson.parseToJsonElement(call.function.arguments).jsonObject

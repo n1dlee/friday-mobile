@@ -5,7 +5,7 @@
     <ID>CyclomaticComplexMethod:CommandRouter.kt$CommandRouter$private fun routeOne(input: String): CommandResult</ID>
     <ID>CyclomaticComplexMethod:CommandRouter.kt$CommandRouter$private fun routeDeviceControl(text: String): CommandResult?</ID>
     <ID>CyclomaticComplexMethod:MediaControls.kt$MediaControls$fun perform(action: MediaAction, appHint: String?): String</ID>
-    <ID>CyclomaticComplexMethod:SettingsScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun SettingsScreen( onNavigateBack: () -&gt; Unit, onOpenDashboard: () -&gt; Unit = {}, viewModel: SettingsViewModel = koinViewModel() )</ID>
+    <ID>CyclomaticComplexMethod:SettingsScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun SettingsScreen( onNavigateBack: () -&gt; Unit, onOpenDashboard: () -&gt; Unit = {}, onOpenDiagnostics: () -&gt; Unit = {}, viewModel: SettingsViewModel = koinViewModel() )</ID>
     <ID>CyclomaticComplexMethod:VoiceEnroller.kt$VoiceEnroller$suspend fun recordOne(): FloatArray?</ID>
     <ID>CyclomaticComplexMethod:WakeWordEngine.kt$WakeWordEngine$suspend fun startListening()</ID>
     <ID>CyclomaticComplexMethod:WeatherCodes.kt$WeatherCodes$fun describe(code: Int, russian: Boolean): String</ID>

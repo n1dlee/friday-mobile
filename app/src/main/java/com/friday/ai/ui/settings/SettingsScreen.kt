@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
@@ -71,6 +72,7 @@ import org.koin.androidx.compose.koinViewModel
 fun SettingsScreen(
     onNavigateBack: () -> Unit,
     onOpenDashboard: () -> Unit = {},
+    onOpenDiagnostics: () -> Unit = {},
     viewModel: SettingsViewModel = koinViewModel()
 ) {
     val apiKey by viewModel.apiKey.collectAsStateWithLifecycle()
@@ -140,6 +142,11 @@ fun SettingsScreen(
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = onOpenDiagnostics) {
+                        Icon(Icons.Filled.MonitorHeart, contentDescription = "Diagnostics")
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
