@@ -1,12 +1,10 @@
 package com.friday.ai.service
 
-import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.nfc.NdefMessage
 import android.nfc.NdefRecord
 import android.nfc.NfcAdapter
-import android.os.Bundle
 import android.util.Log
 import com.friday.ai.core.modes.ModeTags
 import com.friday.ai.core.modes.NfcTags
@@ -55,15 +53,11 @@ class AndroidNfcTags(private val context: Context, private val prefs: UserPrefer
  * this from the tag's MIME type. It hands the payload to the voice service,
  * which toggles the mode and says what happened, and closes.
  */
-class NfcTagActivity : Activity() {
+class NfcTagActivity : com.friday.ai.HandOffActivity() {
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
+    override fun handOff() {
         payload(intent)?.let { FridayWakeWordService.tag(this, it) }
             ?: Log.w("NfcTagActivity", "Not a Friday tag")
-        finish()
-        @Suppress("DEPRECATION")
-        overridePendingTransition(0, 0)
     }
 
     private fun payload(intent: Intent): ByteArray? {

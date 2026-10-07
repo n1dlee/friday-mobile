@@ -1,11 +1,9 @@
 package com.friday.ai.service
 
-import android.app.Activity
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
-import android.os.Bundle
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 import androidx.core.content.pm.ShortcutInfoCompat
@@ -73,13 +71,9 @@ object ModeShortcuts {
 }
 
 /** A mode's launcher shortcut: toggles it through the voice service, which says what happened. */
-class ModeShortcutActivity : Activity() {
+class ModeShortcutActivity : com.friday.ai.HandOffActivity() {
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
+    override fun handOff() {
         intent.getStringExtra(ModeShortcuts.EXTRA_ID)?.let { FridayWakeWordService.toggleMode(this, it) }
-        finish()
-        @Suppress("DEPRECATION")
-        overridePendingTransition(0, 0)
     }
 }
