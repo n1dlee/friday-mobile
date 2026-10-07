@@ -51,7 +51,7 @@ class FridayOverlayManager(private val context: Context) {
         handler.post { source = label }
     }
 
-    private val speakerLabel: String get() = source?.let { "Friday · $it" } ?: "Friday"
+    private val speakerLabel: String get() = source?.let { "Пятница · $it" } ?: "Пятница"
 
     /** True while the panel is up: Friday is in the middle of something. */
     val isShowing: Boolean get() = currentState != State.HIDDEN

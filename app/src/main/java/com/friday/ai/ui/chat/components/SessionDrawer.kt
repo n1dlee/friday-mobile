@@ -26,10 +26,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.friday.ai.data.local.dao.ChatSessionSummary
+import com.friday.ai.ui.theme.HudBrandStyle
+import com.friday.ai.ui.theme.HudLabel
+import com.friday.ai.ui.theme.HudLabelStyle
 import java.util.Calendar
 
 /**
@@ -49,17 +51,18 @@ fun SessionDrawer(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.surface)
+            .background(MaterialTheme.colorScheme.background)
             .padding(horizontal = 12.dp)
     ) {
         Spacer(Modifier.height(20.dp))
         Text(
-            "Friday AI",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
+            "F.R.I.D.A.Y.",
+            style = HudBrandStyle,
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.padding(horizontal = 8.dp)
         )
+        Spacer(Modifier.height(16.dp))
+        HudLabel("Журнал", modifier = Modifier.padding(horizontal = 8.dp))
 
         Spacer(Modifier.height(16.dp))
 
@@ -78,7 +81,7 @@ fun SessionDrawer(
             )
             Spacer(Modifier.height(0.dp))
             Text(
-                "New chat",
+                "Новый разговор",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(start = 12.dp)
@@ -89,7 +92,7 @@ fun SessionDrawer(
 
         if (sessions.isEmpty()) {
             Text(
-                "No conversations yet",
+                "Разговоров пока нет",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                 modifier = Modifier.padding(12.dp)
@@ -98,8 +101,8 @@ fun SessionDrawer(
         }
 
         Text(
-            "Recents",
-            style = MaterialTheme.typography.labelMedium,
+            "НЕДАВНИЕ",
+            style = HudLabelStyle,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
         )
@@ -126,7 +129,7 @@ private fun SessionRow(
 ) {
     val background =
         if (isActive) MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
-        else MaterialTheme.colorScheme.surface
+        else androidx.compose.ui.graphics.Color.Transparent
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -145,7 +148,7 @@ private fun SessionRow(
         )
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = session.title?.takeIf { it.isNotBlank() } ?: "New conversation",
+                text = session.title?.takeIf { it.isNotBlank() } ?: "Новый разговор",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
@@ -160,7 +163,7 @@ private fun SessionRow(
         IconButton(onClick = onDelete) {
             Icon(
                 Icons.Filled.DeleteOutline,
-                contentDescription = "Delete conversation",
+                contentDescription = "Удалить разговор",
                 tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
             )
         }
@@ -176,9 +179,10 @@ private fun relativeDay(timestamp: Long): String {
     val dayDiff = now.get(Calendar.DAY_OF_YEAR) - then.get(Calendar.DAY_OF_YEAR)
 
     return when {
-        sameYear && dayDiff == 0 -> "Today"
-        sameYear && dayDiff == 1 -> "Yesterday"
-        sameYear && dayDiff in 2..6 -> "$dayDiff days ago"
+        sameYear && dayDiff == 0 -> "Сегодня"
+        sameYear && dayDiff == 1 -> "Вчера"
+        sameYear && dayDiff in 2..4 -> "$dayDiff дня назад"
+        sameYear && dayDiff in 5..6 -> "$dayDiff дней назад"
         else -> android.text.format.DateFormat.format("d MMM yyyy", timestamp).toString()
     }
 }
