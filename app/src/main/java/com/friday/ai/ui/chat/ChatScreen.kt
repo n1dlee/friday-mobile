@@ -33,6 +33,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Draw
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.DrawerValue
@@ -87,6 +88,7 @@ import org.koin.androidx.compose.koinViewModel
 fun ChatScreen(
     onNavigateToSettings: () -> Unit,
     onNavigateToModes: () -> Unit = {},
+    onNavigateToNotebook: () -> Unit = {},
     viewModel: ChatViewModel = koinViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -173,6 +175,7 @@ fun ChatScreen(
             onMenu = { scope.launch { drawerState.open() } },
             onSettings = onNavigateToSettings,
             onModes = onNavigateToModes,
+            onNotebook = onNavigateToNotebook,
             onMode = viewModel::onModeChange,
             onInput = viewModel::onInputChange,
             onSend = viewModel::onSend,
@@ -192,6 +195,7 @@ internal fun ChatLayout(
     onMenu: () -> Unit,
     onSettings: () -> Unit,
     onModes: () -> Unit,
+    onNotebook: () -> Unit = {},
     onMode: (AssistantMode) -> Unit,
     onInput: (String) -> Unit,
     onSend: () -> Unit,
@@ -217,6 +221,9 @@ internal fun ChatLayout(
                     }
                 },
                 actions = {
+                    IconButton(onClick = onNotebook) {
+                        Icon(Icons.Filled.Draw, contentDescription = "Блокнот", tint = ArcCyan)
+                    }
                     IconButton(onClick = onModes) {
                         Icon(Icons.Filled.AutoAwesome, contentDescription = "Режимы", tint = ArcCyan)
                     }

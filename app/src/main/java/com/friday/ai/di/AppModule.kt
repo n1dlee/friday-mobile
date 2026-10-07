@@ -229,6 +229,7 @@ val appModule = module {
     }
     viewModel { com.friday.ai.ui.diagnostics.DiagnosticsViewModel(get()) }
     viewModel { com.friday.ai.ui.modes.ModesViewModel(get(), get(), get()) }
+    single { com.friday.ai.ui.notebook.NotebookInbox() }
     viewModel { com.friday.ai.ui.settings.TransferViewModel(androidContext(), get(), get(), get()) }
     viewModel {
         LazuriDashboardViewModel(

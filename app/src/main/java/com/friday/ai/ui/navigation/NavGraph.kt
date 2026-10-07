@@ -70,9 +70,14 @@ fun FridayNavGraph(activity: MainActivity) {
                 }
             }
 
+            // A page asked about in the notebook arrives here when the chat comes back.
+            val inbox: com.friday.ai.ui.notebook.NotebookInbox = koinInject()
+            LaunchedEffect(Unit) { inbox.take()?.let(viewModel::onNotebook) }
+
             ChatScreen(
                 onNavigateToSettings = { navController.navigate("settings") },
                 onNavigateToModes = { navController.navigate("modes") },
+                onNavigateToNotebook = { navController.navigate("notebook") },
                 viewModel = viewModel
             )
         }
@@ -82,6 +87,12 @@ fun FridayNavGraph(activity: MainActivity) {
                 onOpenDashboard = { navController.navigate("lazuri_dashboard") },
                 onOpenDiagnostics = { navController.navigate("diagnostics") },
                 onOpenModes = { navController.navigate("modes") }
+            )
+        }
+        composable("notebook") {
+            com.friday.ai.ui.notebook.NotebookScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onAsk = { navController.popBackStack() }
             )
         }
         composable("modes") {
