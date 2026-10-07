@@ -72,6 +72,7 @@ fun FridayNavGraph(activity: MainActivity) {
 
             ChatScreen(
                 onNavigateToSettings = { navController.navigate("settings") },
+                onNavigateToModes = { navController.navigate("modes") },
                 viewModel = viewModel
             )
         }
@@ -79,8 +80,12 @@ fun FridayNavGraph(activity: MainActivity) {
             SettingsScreen(
                 onNavigateBack = { navController.popBackStack() },
                 onOpenDashboard = { navController.navigate("lazuri_dashboard") },
-                onOpenDiagnostics = { navController.navigate("diagnostics") }
+                onOpenDiagnostics = { navController.navigate("diagnostics") },
+                onOpenModes = { navController.navigate("modes") }
             )
+        }
+        composable("modes") {
+            com.friday.ai.ui.modes.ModesScreen(onNavigateBack = { navController.popBackStack() })
         }
         composable("diagnostics") {
             DiagnosticsScreen(

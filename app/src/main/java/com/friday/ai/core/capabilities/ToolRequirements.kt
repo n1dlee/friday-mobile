@@ -20,7 +20,8 @@ object ToolRequirements {
         NOTIFICATIONS("notification access is off"),
         CONTACTS("contacts access is off"),
         CALENDAR("calendar access is off"),
-        LOCATION("location access is off");
+        LOCATION("location access is off"),
+        MODES("no modes created yet");
 
         fun met(c: FridayCapabilities): Boolean = when (this) {
             GMAIL -> c.integrations.gmail
@@ -28,6 +29,7 @@ object ToolRequirements {
             CONTACTS -> c.permissions.contacts
             CALENDAR -> c.permissions.calendar
             LOCATION -> c.permissions.location
+            MODES -> c.modes.isNotEmpty()
         }
     }
 
@@ -45,7 +47,8 @@ object ToolRequirements {
         "send_message" to Rule(setOf(Need.CONTACTS), "messaging people by name"),
         // New events fall back to the calendar's own editor; moving one needs to read it.
         "move_event" to Rule(setOf(Need.CALENDAR), "moving calendar events"),
-        "remind_near_place" to Rule(setOf(Need.LOCATION), "reminders near places")
+        "remind_near_place" to Rule(setOf(Need.LOCATION), "reminders near places"),
+        "run_mode" to Rule(setOf(Need.MODES), "the owner's modes")
     )
 
     fun missing(tool: String, c: FridayCapabilities): Set<Need> =
@@ -60,7 +63,8 @@ object ToolRequirements {
      * pretending, or inventing a reason. Null when nothing is missing.
      */
     fun unavailableNote(c: FridayCapabilities): String? {
-        val gaps = rules.values
+        // No modes is not something to fix; it just means there are none to offer.
+        val gaps = rules.filterKeys { it != "run_mode" }.values
             .mapNotNull { rule ->
                 val unmet = rule.needs.filterNot { it.met(c) }
                 if (unmet.isEmpty()) null else rule.what to unmet

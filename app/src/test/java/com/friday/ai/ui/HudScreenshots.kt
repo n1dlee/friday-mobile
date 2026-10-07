@@ -125,6 +125,38 @@ class HudScreenshots {
         }
     }
 
+    @Test
+    fun modes() = shoot("modes") {
+        fun e(tool: String, json: String) = com.friday.ai.agent.ActionEnvelope(
+            tool, kotlinx.serialization.json.Json.parseToJsonElement(json) as kotlinx.serialization.json.JsonObject
+        )
+        val rest = com.friday.ai.core.modes.Mode(
+            id = "1", name = "отдыха", aliases = emptyList(),
+            description = "полный беззвучный, не беспокоить и яркость на минимум",
+            steps = listOf(
+                e("phone_control", """{"target":"ringer","state":"silent"}"""),
+                e("phone_control", """{"target":"dnd","state":"on"}"""),
+                e("phone_control", """{"target":"brightness","level":5}""")
+            ),
+            undo = emptyList(), createdAt = 0, lastRunAt = 0, runCount = 4
+        )
+        val sad = rest.copy(
+            id = "2", name = "грусти", description = "включается Spotify с грустными песнями",
+            steps = listOf(e("play", """{"query":"грустные песни","kind":"music","app":"Spotify"}""")),
+            undo = null, runCount = 1
+        )
+        com.friday.ai.ui.modes.ModesLayout(
+            listOf(rest, sad),
+            status = "Режим отдыха. Полностью беззвучно. «Не беспокоить» включён. Яркость 5%.",
+            busy = null, onNavigateBack = {}, onRun = {}, onStop = {}, onDelete = {}
+        )
+    }
+
+    @Test
+    fun modesEmpty() = shoot("modes_empty") {
+        com.friday.ai.ui.modes.ModesLayout(emptyList(), null, null, {}, {}, {}, {})
+    }
+
     @Composable
     private fun DotRow(color: androidx.compose.ui.graphics.Color, text: String) {
         Row { StatusDot(color, live = false); Text(text, color = color) }
@@ -136,7 +168,7 @@ class HudScreenshots {
             state = state,
             inputText = input,
             listState = rememberLazyListState(),
-            onMenu = {}, onSettings = {}, onMode = {}, onInput = {}, onSend = {},
+            onMenu = {}, onSettings = {}, onModes = {}, onMode = {}, onInput = {}, onSend = {},
             onMic = {}, onSuggestion = {}, onDismissError = {}
         )
     }

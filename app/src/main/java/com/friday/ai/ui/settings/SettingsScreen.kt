@@ -85,6 +85,7 @@ fun SettingsScreen(
     onNavigateBack: () -> Unit,
     onOpenDashboard: () -> Unit = {},
     onOpenDiagnostics: () -> Unit = {},
+    onOpenModes: () -> Unit = {},
     viewModel: SettingsViewModel = koinViewModel()
 ) {
     val snackbarHost = remember { SnackbarHostState() }
@@ -125,13 +126,22 @@ fun SettingsScreen(
                 MailPanel(viewModel)
                 LearnedPanel(viewModel)
                 MapsPanel(viewModel)
-                HudPanel("Память", index = 9) {
+                HudPanel("Режимы", index = 9) {
+                    HudNote(
+                        "Несколько действий под одним именем, созданные голосом: «создай режим отдыха: " +
+                            "беззвучный и яркость на минимум». «Выключи режим» возвращает всё как было."
+                    )
+                    HudOutlinedButton(onClick = onOpenModes, modifier = Modifier.fillMaxWidth()) {
+                        Text("Открыть режимы")
+                    }
+                }
+                HudPanel("Память", index = 10) {
                     HudNote("Карта того, что Пятница знает о вас: факты и разговоры, из которых они взялись.")
                     HudOutlinedButton(onClick = onOpenDashboard, modifier = Modifier.fillMaxWidth()) {
                         Text("Что Пятница знает обо мне")
                     }
                 }
-                HudPanel("Перенос на другой телефон", index = 10) { TransferSection() }
+                HudPanel("Перенос на другой телефон", index = 11) { TransferSection() }
                 Spacer(Modifier.height(24.dp))
             }
         }

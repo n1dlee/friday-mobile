@@ -7,12 +7,14 @@ import com.friday.ai.data.local.dao.ChatMessageDao
 import com.friday.ai.data.local.dao.InteractionDao
 import com.friday.ai.data.local.dao.ErrandDao
 import com.friday.ai.data.local.dao.MemoryDao
+import com.friday.ai.data.local.dao.ModeDao
 import com.friday.ai.data.local.dao.NotificationDao
 import com.friday.ai.data.local.dao.SessionSummaryDao
 import com.friday.ai.data.local.dao.UserPreferenceDao
 import com.friday.ai.data.local.entity.ChatMessageEntity
 import com.friday.ai.data.local.entity.InteractionEntity
 import com.friday.ai.data.local.entity.ErrandEntity
+import com.friday.ai.data.local.entity.ModeEntity
 import com.friday.ai.data.local.entity.MemoryEntity
 import com.friday.ai.data.local.entity.NotificationEntity
 import com.friday.ai.data.local.entity.SessionSummaryEntity
@@ -26,9 +28,10 @@ import com.friday.ai.data.local.entity.UserPreferenceEntity
         InteractionEntity::class,
         NotificationEntity::class,
         SessionSummaryEntity::class,
-        ErrandEntity::class
+        ErrandEntity::class,
+        ModeEntity::class
     ],
-    version = 7,
+    version = 8,
     // Exported so Room can verify the hand-written migrations.
     exportSchema = true
 )
@@ -41,4 +44,5 @@ abstract class FridayDatabase : RoomDatabase() {
     abstract fun sessionSummaryDao(): SessionSummaryDao
     abstract fun errandDao(): ErrandDao
     abstract fun backupDao(): BackupDao
+    abstract fun modeDao(): ModeDao
 }

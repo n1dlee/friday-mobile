@@ -135,6 +135,10 @@ class DeviceContext(private val context: Context, private val probe: CapabilityP
             append(" Installed — messengers: $messengers")
             append("; music: ${names(apps.music)}; video: ${names(apps.video)}; maps: ${names(apps.maps)}.")
             capabilities.value?.let(ToolRequirements::unavailableNote)?.let { append(" ").append(it) }
+            capabilities.value?.modes?.takeIf { it.isNotEmpty() }?.let {
+                append(" The owner's modes (start one with run_mode; they say \"режим <name>\"): ")
+                append(it.joinToString()).append(".")
+            }
         }
     }
 }

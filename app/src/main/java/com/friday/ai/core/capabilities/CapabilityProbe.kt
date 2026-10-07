@@ -28,7 +28,11 @@ import com.friday.ai.service.mail.MailAssistant
  * fact is detected from what the phone reports, never inferred from the
  * model name: "Samsung" does not mean "has an S Pen".
  */
-class CapabilityProbe(private val context: Context, private val prefs: UserPreferenceDao) {
+class CapabilityProbe(
+    private val context: Context,
+    private val prefs: UserPreferenceDao,
+    private val modes: () -> List<String> = { emptyList() }
+) {
 
     private companion object {
         const val SHIZUKU_PACKAGE = "moe.shizuku.privileged.api"
@@ -54,7 +58,8 @@ class CapabilityProbe(private val context: Context, private val prefs: UserPrefe
             listening = FridayWakeWordService.running
         ),
         assistant = FridayCapabilities.Assistant(active = isDefaultAssistant()),
-        privileged = FridayCapabilities.Privileged(shizukuInstalled = installed(SHIZUKU_PACKAGE))
+        privileged = FridayCapabilities.Privileged(shizukuInstalled = installed(SHIZUKU_PACKAGE)),
+        modes = modes()
     )
 
     private fun device(): FridayCapabilities.Device {

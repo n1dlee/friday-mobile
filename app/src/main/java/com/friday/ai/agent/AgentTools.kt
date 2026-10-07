@@ -200,6 +200,12 @@ object AgentTools {
         tool("briefing", "The morning briefing, or what the user missed (notifications).") {
             enum("kind", setOf("morning", "missed"), required = true)
         },
+        tool(
+            "run_mode",
+            "Start one of the owner's own modes (listed in the phone context). Use it when what they ask matches a mode."
+        ) {
+            string("name", "the mode's name as listed", required = true)
+        },
         tool("calculate", "Exact arithmetic. Use it for any calculation instead of working it out yourself. Write percentages as multiplication (15% of 200 = 0.15*200).") {
             string("expression", "e.g. (17*23+4)/2, 2^10, sqrt(2)", required = true)
         }
@@ -209,7 +215,7 @@ object AgentTools {
     private val escalate = tool(
         ToolKit.ESCALATE,
         "Call this FIRST if the user wants anything done on the phone — alarms, timers, calls, messages, music, " +
-            "volume, flashlight, camera, apps, settings, calendar, notes, reminders, weather, mail. " +
+            "volume, flashlight, camera, apps, settings, calendar, notes, reminders, weather, mail, the owner's modes. " +
             "The phone's tools are then given to you. Never say you cannot do a phone action without calling this."
     ) {}
 
@@ -279,6 +285,7 @@ object AgentTools {
                 val expression = a.string("expression")
                 Call.Answer("$expression = ${Calculator.format(Calculator.evaluate(expression))}")
             }
+            "run_mode" -> command(CommandResult.Mode.Run(a.string("name")))
             ToolKit.ESCALATE -> Call.Escalate
             else -> Call.Invalid("there is no tool called '$name'")
         }

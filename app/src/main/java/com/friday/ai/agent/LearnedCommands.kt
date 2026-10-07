@@ -50,7 +50,9 @@ class LearnedCommands(
         /** Calls whose meaning does not depend on when or after what they were said. */
         private val STABLE_TOOLS = setOf(
             "set_alarm", "set_timer", "call", "flashlight", "phone_control", "media", "play", "open_settings",
-            "camera", "voice_recorder", "open_app", "find_nearby", "read_messages", "weather", "briefing"
+            "camera", "voice_recorder", "open_app", "find_nearby", "read_messages", "weather", "briefing",
+            // "Мне грустно" worked out as run_mode(грусти) once: the owner's own way of naming the mode.
+            "run_mode"
         )
 
         /**

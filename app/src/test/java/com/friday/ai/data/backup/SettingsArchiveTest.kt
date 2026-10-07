@@ -221,6 +221,7 @@ private class FakeBackupDao : BackupDao() {
     private val chatTable = mutableListOf<ChatMessageEntity>()
     private val interactionsTable = mutableListOf<InteractionEntity>()
     private val summariesTable = mutableListOf<SessionSummaryEntity>()
+    private val modesTable = mutableListOf<com.friday.ai.data.local.entity.ModeEntity>()
 
     override suspend fun preferences() = prefs.toList()
     override suspend fun memories() = memoriesTable.toList()
@@ -228,6 +229,7 @@ private class FakeBackupDao : BackupDao() {
     override suspend fun chat() = chatTable.toList()
     override suspend fun interactions() = interactionsTable.toList()
     override suspend fun summaries() = summariesTable.toList()
+    override suspend fun modes() = modesTable.toList()
 
     override suspend fun clearPreferences() = prefs.clear()
     override suspend fun clearMemories() = memoriesTable.clear()
@@ -235,6 +237,7 @@ private class FakeBackupDao : BackupDao() {
     override suspend fun clearChat() = chatTable.clear()
     override suspend fun clearInteractions() = interactionsTable.clear()
     override suspend fun clearSummaries() = summariesTable.clear()
+    override suspend fun clearModes() = modesTable.clear()
 
     override suspend fun insertPreferences(rows: List<UserPreferenceEntity>) { prefs += rows }
     override suspend fun insertMemories(rows: List<MemoryEntity>) { memoriesTable += rows }
@@ -242,6 +245,7 @@ private class FakeBackupDao : BackupDao() {
     override suspend fun insertChat(rows: List<ChatMessageEntity>) { chatTable += rows }
     override suspend fun insertInteractions(rows: List<InteractionEntity>) { interactionsTable += rows }
     override suspend fun insertSummaries(rows: List<SessionSummaryEntity>) { summariesTable += rows }
+    override suspend fun insertModes(rows: List<com.friday.ai.data.local.entity.ModeEntity>) { modesTable += rows }
 
     /** The preferences table seen through the ordinary DAO. */
     fun asPreferenceDao() = object : UserPreferenceDao {

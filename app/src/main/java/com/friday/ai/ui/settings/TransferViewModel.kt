@@ -21,7 +21,8 @@ import kotlinx.coroutines.withContext
  */
 class TransferViewModel(
     private val appContext: Context,
-    private val transfer: SettingsTransfer
+    private val transfer: SettingsTransfer,
+    private val modes: com.friday.ai.core.modes.ModeStore? = null
 ) : ViewModel() {
 
     sealed interface State {
@@ -62,6 +63,8 @@ class TransferViewModel(
         work {
             transfer.apply(content)
             pending = null
+            // The database was replaced under the in-memory copy.
+            modes?.load()
             // Wake word, thresholds and voice profile are read when the service starts.
             if (FridayWakeWordService.running) {
                 FridayWakeWordService.stop(appContext)
