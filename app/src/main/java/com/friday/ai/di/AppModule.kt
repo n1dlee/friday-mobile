@@ -75,7 +75,9 @@ val appModule = module {
     single { CalendarWriter(androidContext()) }
     single { DeviceController(androidContext()) }
     single { com.friday.ai.core.MediaLauncher(androidContext()) }
-    single { com.friday.ai.core.MediaControls(androidContext()) }
+    single { com.friday.ai.core.MediaSessions(androidContext()) }
+    single { com.friday.ai.core.PlaybackStarter(androidContext(), get(), get(), get()) }
+    single { com.friday.ai.core.MediaControls(androidContext(), get(), get()) }
     single { com.friday.ai.service.mail.GmailAuth(androidContext()) }
     single { com.friday.ai.data.remote.GmailApi.create() }
     single { com.friday.ai.service.mail.MailRetelling(get(), get(), get()) }
@@ -91,7 +93,7 @@ val appModule = module {
     }
     single { com.friday.ai.core.people.PeopleDirectory(get(), get()) }
     single { com.friday.ai.core.people.Messenger(androidContext(), get(), get(), get()) }
-    single { com.friday.ai.core.MediaSearch(androidContext(), get(), get()) }
+    single { com.friday.ai.core.MediaSearch(androidContext(), get(), get(), get()) }
     single { com.friday.ai.service.WeatherHere(androidContext(), get(), get()) }
     single { com.friday.ai.core.people.Caller(androidContext(), get(), get(), get(), get(), get()) }
     single { com.friday.ai.service.messages.MessengerInbox() }

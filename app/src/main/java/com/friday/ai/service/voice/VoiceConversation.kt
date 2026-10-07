@@ -26,7 +26,9 @@ class VoiceIO(
     val wake: WakeListener,
     val notifier: ServiceNotifier,
     /** Pauses other audio for the length of a conversation; released when the panel closes. */
-    val focus: AudioFocusHold? = null
+    val focus: AudioFocusHold? = null,
+    /** True while a phone or VoIP call is in progress. */
+    val inCall: () -> Boolean = { false }
 )
 
 /**
@@ -251,6 +253,13 @@ class VoiceConversation(
      * cuts the answer short instead of queueing behind it.
      */
     private fun speakAndContinue(mine: Int, text: String, allowFollowUp: Boolean) {
+        // A call has just started (often one Friday placed): she doesn't talk
+        // over it, and the microphone is the call's, not hers.
+        if (io.inCall()) {
+            speaking = false
+            io.overlay.showResult(text, RESULT_LINGER_MS)
+            return
+        }
         io.overlay.show(FridayOverlayManager.State.SPEAKING, text)
         speaking = true
         io.wake.listen()
@@ -262,7 +271,8 @@ class VoiceConversation(
     /** Either keep the conversation open, or show the answer briefly and step back. */
     private suspend fun afterSpeaking(mine: Int, spokenText: String, allowFollowUp: Boolean) {
         speaking = false
-        if (allowFollowUp) {
+        // Never open the microphone for a follow-up during a call.
+        if (allowFollowUp && !io.inCall()) {
             io.overlay.show(FridayOverlayManager.State.LISTENING)
             listen(mine, isFollowUp = true)
         } else {

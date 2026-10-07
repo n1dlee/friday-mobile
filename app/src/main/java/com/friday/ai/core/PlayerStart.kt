@@ -1,14 +1,15 @@
 package com.friday.ai.core
 
 /**
- * What came of starting a player that wasn't running, and how to say it.
+ * What came of starting music, and how to say it.
  *
  * "Включи музыку в Spotify" with Spotify closed used to open Spotify and
  * stop there: there was no media session to press play on, so nothing
  * played, and the second attempt (Spotify now running) worked — which looked
- * like Friday not understanding the first time. Now the player is started
- * with a play request, then checked: only music actually heard counts as
- * "playing", as with alarms only an alarm actually set counts as "set".
+ * like Friday not understanding the first time. Starting is now a checked
+ * hand-off ([HandOff], [PlaybackStarter]), and only music a player's session
+ * reports as playing is called "playing" — as only an alarm actually set is
+ * called "set".
  */
 object PlayerStart {
 
@@ -24,14 +25,18 @@ object PlayerStart {
         NOT_INSTALLED
     }
 
-    fun reply(outcome: Outcome, player: String, russian: Boolean): String = when (outcome) {
-        Outcome.PLAYING -> if (russian) "Играет $player" else "Playing on $player"
-        Outcome.OPENED_NOT_PLAYING ->
-            if (russian) "$player открыт, но сам не начал играть — нажмите ▶"
-            else "$player is open but didn't start — press play"
-        Outcome.OPENED_UNVERIFIED ->
-            if (russian) "Открыла $player — не вижу, играет ли он"
-            else "Opened $player — I can't tell whether it's playing"
-        Outcome.NOT_INSTALLED -> if (russian) "$player не установлен" else "$player isn't installed"
+    /** [query] is what was asked for ("Believer"), or null for "whatever it plays". */
+    fun reply(outcome: Outcome, player: String, russian: Boolean, query: String? = null): String {
+        val what = query?.let { if (russian) "«$it» " else "\"$it\" " }.orEmpty()
+        return when (outcome) {
+            Outcome.PLAYING -> if (russian) "Играет ${what}в $player" else "Playing ${what}on $player"
+            Outcome.OPENED_NOT_PLAYING ->
+                if (russian) "$player открыт, но сам не начал играть — нажмите ▶"
+                else "$player is open but didn't start — press play"
+            Outcome.OPENED_UNVERIFIED ->
+                if (russian) "Открыла $player — не вижу, играет ли он"
+                else "Opened $player — I can't tell whether it's playing"
+            Outcome.NOT_INSTALLED -> if (russian) "$player не установлен" else "$player isn't installed"
+        }
     }
 }

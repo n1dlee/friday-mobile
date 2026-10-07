@@ -136,7 +136,10 @@ class FridayWakeWordService : Service() {
         )
         conversation = VoiceConversation(
             scope = scope,
-            io = VoiceIO(overlay, speaker, transcriber, OfflineCommandRecognizer(this), wake, notifier, focus),
+            io = VoiceIO(
+                overlay, speaker, transcriber, OfflineCommandRecognizer(this), wake, notifier, focus,
+                inCall = { com.friday.ai.core.CallState.inCall(this) }
+            ),
             gate = gate,
             commands = get(CommandExecutor::class.java),
             answers = SpokenAnswer(

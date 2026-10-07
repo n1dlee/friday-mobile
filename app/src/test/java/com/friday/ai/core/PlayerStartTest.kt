@@ -21,7 +21,7 @@ class PlayerStartTest {
 
     @Test
     fun `only music actually playing is reported as playing`() {
-        assertEquals("Играет Spotify", PlayerStart.reply(Outcome.PLAYING, "Spotify", russian = true))
+        assertEquals("Играет в Spotify", PlayerStart.reply(Outcome.PLAYING, "Spotify", russian = true))
         listOf(Outcome.OPENED_NOT_PLAYING, Outcome.OPENED_UNVERIFIED, Outcome.NOT_INSTALLED).forEach {
             assertFalse(it.name, PlayerStart.reply(it, "Spotify", russian = true).startsWith("Играет"))
         }

@@ -9,7 +9,9 @@ import android.util.Log
 import com.friday.ai.core.AppLauncher
 import com.friday.ai.core.ContactMatcher
 import com.friday.ai.core.ContactsReader
+import com.friday.ai.core.CallState
 import com.friday.ai.core.DeviceContext
+import com.friday.ai.core.HandOff
 import com.friday.ai.data.local.dao.UserPreferenceDao
 import com.friday.ai.data.local.entity.UserPreferenceEntity
 
@@ -68,6 +70,8 @@ class Caller(
     private companion object {
         const val TAG = "Caller"
         const val PREF_FAVOURITE = "favourite_messenger"
+        const val MESSENGER_CALL_WAIT_MS = 7_000L
+        const val MESSENGER_RETRY_WAIT_MS = 6_000L
         fun usualKey(person: Person) = "call_via:" + ContactMatcher.canonical(person.name)
     }
 
@@ -107,23 +111,37 @@ class Caller(
         )
     }
 
-    private fun viaMessenger(person: Person, choice: ChannelChooser.Choice, russian: Boolean): String {
+    private suspend fun viaMessenger(person: Person, choice: ChannelChooser.Choice, russian: Boolean): String {
         val app = choice.channel.label
         val why = ChannelChooser.explain(choice, russian, call = true).let { if (it.isBlank()) "" else " ($it)" }
         val entry = person.id?.let { CallEntry.pick(contacts.callEntries(it), choice.channel, choice.number) }
         val pkg = choice.channel.packages.firstOrNull { device.isInstalled(it) }
         return try {
             if (entry != null) {
-                context.startActivity(
-                    Intent(Intent.ACTION_VIEW)
-                        .setDataAndType(
-                            ContentUris.withAppendedId(ContactsContract.Data.CONTENT_URI, entry.id),
-                            entry.mimeType
-                        )
-                        .setPackage(if ("w4b" in entry.mimeType) "com.whatsapp.w4b" else pkg)
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                val callIntent = Intent(Intent.ACTION_VIEW)
+                    .setDataAndType(
+                        ContentUris.withAppendedId(ContactsContract.Data.CONTENT_URI, entry.id),
+                        entry.mimeType
+                    )
+                    .setPackage(if ("w4b" in entry.mimeType) "com.whatsapp.w4b" else pkg)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                // A cold-started messenger can open on its chat list and drop the
+                // call; that is what made "позвони маме" need saying twice. Its
+                // call puts the audio system in communication mode, which is what
+                // is waited for, and the request is sent once more if it doesn't.
+                val started = HandOff.run(
+                    send = { context.startActivity(callIntent) },
+                    happened = { CallState.inCall(context) },
+                    waitMs = MESSENGER_CALL_WAIT_MS,
+                    retryWaitMs = MESSENGER_RETRY_WAIT_MS
                 )
-                if (russian) "Звоню «${person.name}» в $app$why" else "Calling ${person.name} on $app$why"
+                when {
+                    started != HandOff.Result.NOT_SEEN && russian -> "Звоню «${person.name}» в $app$why"
+                    started != HandOff.Result.NOT_SEEN -> "Calling ${person.name} on $app$why"
+                    // Usually its own "Call?" confirmation, which only a tap can answer.
+                    russian -> "Открыла звонок «${person.name}» в $app$why, но он не начался — подтвердите в $app"
+                    else -> "Opened the $app call to ${person.name}$why, but it didn't start — confirm it in $app"
+                }
             } else {
                 openChat(choice, pkg)
                 if (russian) "Открыла чат с «${person.name}» в $app$why — нажмите трубку. " +
