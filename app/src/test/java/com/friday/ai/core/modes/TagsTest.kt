@@ -124,14 +124,14 @@ class ModeTagEngineTest {
     fun `touching the tag toggles the mode`() = runTest {
         say("создай режим отдыха: не беспокоить")
         val id = store.all().single().id
-        assertTrue(engine.onTag(id, true, runner).startsWith("Режим отдыха."))
+        assertTrue(engine.toggle(id, true, runner).startsWith("Режим отдыха."))
         assertTrue(knobs.on)
-        assertTrue(engine.onTag(id, true, runner).startsWith("Режим отдыха выключен."))
+        assertTrue(engine.toggle(id, true, runner).startsWith("Режим отдыха выключен."))
         assertFalse(knobs.on)
     }
 
     @Test
     fun `a tag for a deleted mode says so`() = runTest {
-        assertEquals("Эта метка была для режима, которого больше нет.", engine.onTag("gone", true, runner))
+        assertEquals("Эта метка была для режима, которого больше нет.", engine.toggle("gone", true, runner))
     }
 }

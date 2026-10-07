@@ -40,6 +40,8 @@ import org.koin.java.KoinJavaComponent.get
  * [CommandExecutor] carries out commands — the same one the chat uses — and
  * [VoiceSession] keeps the record.
  */
+// Lifecycle, plus one handler per way Friday is called: wake word, side button, NFC tag, shortcut.
+@Suppress("TooManyFunctions")
 class FridayWakeWordService : Service() {
 
     companion object {
@@ -108,6 +110,21 @@ class FridayWakeWordService : Service() {
                 else context.startService(intent)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to handle a tag: ${e.message}")
+            }
+        }
+
+        private const val ACTION_MODE = "com.friday.ai.TOGGLE_MODE"
+        private const val EXTRA_MODE = "mode"
+
+        /** A mode's launcher shortcut: toggle it and say what happened. */
+        fun toggleMode(context: Context, modeId: String) {
+            try {
+                val intent = Intent(context, FridayWakeWordService::class.java)
+                    .setAction(ACTION_MODE).putExtra(EXTRA_MODE, modeId)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent)
+                else context.startService(intent)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to toggle a mode: ${e.message}")
             }
         }
 
@@ -206,6 +223,7 @@ class FridayWakeWordService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val invoked = intent?.action == ACTION_INVOKE
         val tagged = intent?.takeIf { it.action == ACTION_TAG }?.getByteArrayExtra(EXTRA_PAYLOAD)
+        val toggled = intent?.takeIf { it.action == ACTION_MODE }?.getStringExtra(EXTRA_MODE)
         if (!::conversation.isInitialized) return START_NOT_STICKY
         if (!started) {
             started = true
@@ -213,11 +231,14 @@ class FridayWakeWordService : Service() {
                 begin()
                 if (invoked) conversation.onWake("")
                 tagged?.let { onTag(it) }
+                toggled?.let { toggle(it) }
             }
         } else if (invoked) {
             conversation.onWake("")
         } else if (tagged != null) {
             scope.launch { onTag(tagged) }
+        } else if (toggled != null) {
+            scope.launch { toggle(toggled) }
         } else if (!wakeWordOn) {
             // Running for the side button only, and now the wake word was switched on.
             scope.launch { begin() }
@@ -259,19 +280,26 @@ class FridayWakeWordService : Service() {
     /** A Friday NFC tag: its mode is toggled, if this phone signed it. */
     private suspend fun onTag(payload: ByteArray) {
         val secret = get<AndroidNfcTags>(AndroidNfcTags::class.java).secret()
-        val said = when (val read = com.friday.ai.core.modes.ModeTags.read(payload, secret)) {
-            is com.friday.ai.core.modes.ModeTags.Read.Mode -> {
-                val engine = get<com.friday.ai.core.modes.ModeEngine>(com.friday.ai.core.modes.ModeEngine::class.java)
-                val commands = get<CommandExecutor>(CommandExecutor::class.java)
-                engine.onTag(read.id, russian = true) { step ->
-                    (commands.execute(step, russian = true) as? CommandExecutor.Outcome.Reply)?.text.orEmpty()
-                }
-            }
-            com.friday.ai.core.modes.ModeTags.Read.Forged -> "Эту метку записал не этот телефон — не запускаю."
-            com.friday.ai.core.modes.ModeTags.Read.NotATag -> return
+        when (val read = com.friday.ai.core.modes.ModeTags.read(payload, secret)) {
+            is com.friday.ai.core.modes.ModeTags.Read.Mode -> toggle(read.id)
+            com.friday.ai.core.modes.ModeTags.Read.Forged -> say("Эту метку записал не этот телефон — не запускаю.")
+            com.friday.ai.core.modes.ModeTags.Read.NotATag -> Unit
         }
-        // Touching a tag is the owner being there: said aloud, like the car connecting.
-        conversation.announce(said, listenAfter = false)
+    }
+
+    /** A tag or a shortcut: the mode is toggled, and the result said aloud — the owner is right there. */
+    private suspend fun toggle(modeId: String) {
+        val engine = get<com.friday.ai.core.modes.ModeEngine>(com.friday.ai.core.modes.ModeEngine::class.java)
+        val commands = get<CommandExecutor>(CommandExecutor::class.java)
+        say(
+            engine.toggle(modeId, russian = true) { step ->
+                (commands.execute(step, russian = true) as? CommandExecutor.Outcome.Reply)?.text.orEmpty()
+            }
+        )
+    }
+
+    private fun say(text: String) {
+        conversation.announce(text, listenAfter = false)
         if (!wakeWordOn) scope.launch { delay(TAG_SPEECH_MS); if (!overlayShowing()) stopSelf() }
     }
 

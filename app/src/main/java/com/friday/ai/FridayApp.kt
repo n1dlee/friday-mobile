@@ -31,6 +31,16 @@ class FridayApp : Application() {
         wireSessionSummaries()
         learnOwnerFromDevice()
         bookModeSchedules()
+        publishModeShortcuts()
+    }
+
+    /** Long press on the icon offers the most used modes; kept in step as modes change. */
+    private fun publishModeShortcuts() {
+        appScope.launch {
+            val store: com.friday.ai.core.modes.ModeStore =
+                org.koin.java.KoinJavaComponent.get(com.friday.ai.core.modes.ModeStore::class.java)
+            store.observe().collect { com.friday.ai.service.ModeShortcuts.publish(this@FridayApp, it) }
+        }
     }
 
     /** Alarms don't survive an app update or a force-stop; booking again is cheap and idempotent. */
