@@ -33,6 +33,11 @@ jobs:
       - name: Build APK
         run: ./gradlew assembleDebug
 
+      # R8 can break JNI-reached code without failing the build; the check
+      # fails it instead (see verifyReleaseKeepRules in app/build.gradle.kts).
+      - name: Release build + R8 keep-rule check
+        run: ./gradlew assembleRelease verifyReleaseKeepRules
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:

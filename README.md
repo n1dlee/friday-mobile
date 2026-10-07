@@ -172,8 +172,10 @@ Requirements: **JDK 17 or 21** (not 25), Android SDK 35.
 git clone https://github.com/n1dlee/friday-mobile.git
 cd friday-mobile
 ./gradlew assembleDebug          # APK in app/build/outputs/apk/debug/
+./gradlew assembleRelease        # minified with R8, ~26 MB, in app/build/outputs/apk/release/
 ./gradlew testDebugUnitTest      # unit tests
 ./gradlew detekt                 # static analysis
+./gradlew verifyReleaseKeepRules # R8 kept the classes native code looks up by name
 ```
 
 No secrets are needed to build. Your Groq key goes into the app's Settings, not the build. Without `keystore/friday.keystore` the build is signed with your SDK's debug key (see [keystore/README.md](keystore/README.md)).
