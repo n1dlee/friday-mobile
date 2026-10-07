@@ -44,7 +44,7 @@ class PhoneActions(
         is CommandResult.Flashlight -> apps.setFlashlight(c.on)
         is CommandResult.WebSearch -> apps.webSearch(c.query)
         is CommandResult.FindNearby -> apps.findNearby(c.query, prefDao.get("maps_provider") ?: "auto")
-        is CommandResult.DeviceControl -> device.perform(c.action, c.level)
+        is CommandResult.DeviceControl -> device.perform(c.action, c.level, russian)
         is CommandResult.OpenSettings -> media.openSettings(c.phrase)
         is CommandResult.OpenCamera -> media.openCamera(c.mode)
         is CommandResult.RecordAudio -> media.recordAudio()

@@ -81,7 +81,7 @@ class SettingsAndMediaRoutingTest {
         // regression.
         assertTrue(router.route("включи звук") is CommandResult.DeviceControl)
         assertEquals(
-            DeviceAction.OPEN_WIFI_PANEL,
+            DeviceAction.WIFI_ON,
             (router.route("включи вайфай") as CommandResult.DeviceControl).action
         )
     }

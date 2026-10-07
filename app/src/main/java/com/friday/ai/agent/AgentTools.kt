@@ -59,12 +59,9 @@ object AgentTools {
     private const val ISO_LOCAL = "local time as YYYY-MM-DDTHH:MM"
 
     // Declared before [definitions], which reads them while the object is initialised.
-    private val deviceActions = mapOf(
-        "volume_up" to DeviceAction.VOLUME_UP, "volume_down" to DeviceAction.VOLUME_DOWN,
-        "volume_set" to DeviceAction.VOLUME_SET, "mute" to DeviceAction.MUTE, "unmute" to DeviceAction.UNMUTE,
-        "dnd_on" to DeviceAction.DND_ON, "dnd_off" to DeviceAction.DND_OFF,
-        "wifi_panel" to DeviceAction.OPEN_WIFI_PANEL, "bluetooth_panel" to DeviceAction.OPEN_BLUETOOTH_PANEL
-    )
+    /** phone_control v2: what to change and how, never how it is done. */
+    private val deviceTargets = setOf("volume", "dnd", "ringer", "brightness", "wifi", "bluetooth")
+    private val deviceStates = setOf("on", "off", "up", "down", "silent", "vibrate", "normal", "auto")
 
     private val mediaActions = mapOf(
         "play" to MediaAction.PLAY, "pause" to MediaAction.PAUSE, "stop" to MediaAction.STOP,
@@ -163,9 +160,15 @@ object AgentTools {
         tool("flashlight", "Turn the flashlight on or off.") {
             enum("state", setOf("on", "off", "toggle"), required = true)
         },
-        tool("phone_control", "Volume, mute, Do Not Disturb, or open the Wi-Fi/Bluetooth panel (they cannot be switched directly).") {
-            enum("action", deviceActions.keys, required = true)
-            int("level", "0-100, only for volume_set")
+        tool(
+            "phone_control",
+            "Change a phone setting. volume: level, up/down, off=mute, on=unmute. dnd: on/off. ringer: normal/vibrate/silent. " +
+                "brightness: level, up/down, auto. wifi/bluetooth: on/off (Android may only open their panel; the result says). " +
+                "The result says what really happened."
+        ) {
+            enum("target", deviceTargets, required = true)
+            enum("state", deviceStates)
+            int("level", "0-100, for volume or brightness")
         },
         tool(
             "play",
@@ -262,9 +265,7 @@ object AgentTools {
                     else -> CommandResult.ToggleFlashlight
                 }
             )
-            "phone_control" -> command(
-                CommandResult.DeviceControl(a.choice("action", deviceActions), a.optInt("level")?.coerceIn(0, MAX_PERCENT))
-            )
+            "phone_control" -> command(device(a.string("target"), a.optString("state"), a.optInt("level")))
             "media" -> command(CommandResult.MediaControl(a.choice("action", mediaActions), a.optString("app")))
             "open_settings" -> command(CommandResult.OpenSettings(a.string("screen")))
             "camera" -> command(CommandResult.OpenCamera(a.choice("mode", cameraModes)))
@@ -286,6 +287,57 @@ object AgentTools {
     }
 
     private fun command(c: CommandResult) = Call.Command(c)
+
+    /** phone_control v2 → the action; a combination that means nothing is refused with the reason. */
+    private fun device(target: String, state: String?, rawLevel: Int?): CommandResult.DeviceControl {
+        val level = rawLevel?.coerceIn(0, MAX_PERCENT)
+        fun c(action: DeviceAction, l: Int? = null) = CommandResult.DeviceControl(action, l)
+        val s = state?.lowercase()
+        fun invalid(reason: String): Nothing = throw IllegalArgumentException(reason)
+        return when (target.lowercase()) {
+            "volume" -> when {
+                level != null -> c(DeviceAction.VOLUME_SET, level)
+                s == "up" -> c(DeviceAction.VOLUME_UP)
+                s == "down" -> c(DeviceAction.VOLUME_DOWN)
+                s == "off" -> c(DeviceAction.MUTE)
+                s == "on" -> c(DeviceAction.UNMUTE)
+                else -> invalid("volume needs a level or state up/down/on/off")
+            }
+            "dnd" -> when (s) {
+                "on" -> c(DeviceAction.DND_ON)
+                "off" -> c(DeviceAction.DND_OFF)
+                else -> invalid("dnd needs state on or off")
+            }
+            "ringer" -> when (s) {
+                "normal", "on" -> c(DeviceAction.RINGER_NORMAL)
+                "vibrate" -> c(DeviceAction.RINGER_VIBRATE)
+                "silent", "off" -> c(DeviceAction.RINGER_SILENT)
+                else -> invalid("ringer needs state normal, vibrate or silent")
+            }
+            "brightness" -> when {
+                level != null -> c(DeviceAction.BRIGHTNESS_SET, level)
+                s == "up" -> c(DeviceAction.BRIGHTNESS_UP)
+                s == "down" -> c(DeviceAction.BRIGHTNESS_DOWN)
+                s == "auto" -> c(DeviceAction.BRIGHTNESS_AUTO)
+                else -> invalid("brightness needs a level or state up/down/auto")
+            }
+            "wifi" -> c(
+                when (s) {
+                    "on" -> DeviceAction.WIFI_ON
+                    "off" -> DeviceAction.WIFI_OFF
+                    else -> DeviceAction.OPEN_WIFI_PANEL
+                }
+            )
+            "bluetooth" -> c(
+                when (s) {
+                    "on" -> DeviceAction.BLUETOOTH_ON
+                    "off" -> DeviceAction.BLUETOOTH_OFF
+                    else -> DeviceAction.OPEN_BLUETOOTH_PANEL
+                }
+            )
+            else -> invalid("target must be one of ${deviceTargets.joinToString()}")
+        }
+    }
 
     private fun alarm(a: Args, now: LocalDateTime): Call {
         val hour = a.int("hour")

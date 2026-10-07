@@ -178,6 +178,13 @@ private fun rememberFixer(onOpenSettings: () -> Unit, onChanged: () -> Unit): (F
             )
             Fix.NOTIFICATION_ACCESS -> FridayNotificationListener.openSettings(context)
             Fix.BATTERY -> requestBatteryExemption(context)
+            Fix.DND_ACCESS -> context.startActivity(
+                Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+            Fix.WRITE_SETTINGS -> context.startActivity(
+                Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, Uri.parse("package:${context.packageName}"))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
             else -> permissionsFor(fix).takeIf { it.isNotEmpty() }?.let(request::launch)
         }
     }
