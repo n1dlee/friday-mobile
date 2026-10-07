@@ -186,6 +186,7 @@ class FridayWakeWordService : Service() {
             // Fires on the recording thread ~20x a second; the reactor only
             // stores the value and redraws on its own vsync, so no hop needed.
             onLevel = { overlay.level(it) }
+            hints = get<SpeechHints>(SpeechHints::class.java)::prompt
         }
         val session = VoiceSession(
             prefDao, get(FridayMemory::class.java), get(ChatMessageDao::class.java), get(ModelCatalog::class.java)

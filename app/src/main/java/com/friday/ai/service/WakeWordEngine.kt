@@ -6,7 +6,9 @@ import android.media.MediaRecorder
 import android.util.Log
 import com.friday.ai.core.PcmAudio
 import com.friday.ai.core.RollingAudio
+import com.friday.ai.core.Singing
 import com.friday.ai.core.VoiceGate
+import com.friday.ai.core.WakeCheck
 import com.friday.ai.core.WakePhrases
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -47,6 +49,16 @@ class WakeWordEngine {
 
     private var model: Model? = null
     private var recognizer: Recognizer? = null
+
+    /**
+     * Samples handed to [recognizer] since it was made. Vosk times its words
+     * against this count — across resets — so it is what places a word in
+     * the audio.
+     */
+    private var fedSamples = 0L
+
+    /** The last name checked for singing, and the answer: the decoder repeats it frame after frame. */
+    private var sungCheck: Pair<WakeCheck.Word, Boolean>? = null
     /**
      * Receives the text the wake call was matched in — so the reply can match
      * its language — the audio it was heard in, so the caller can check whose
@@ -68,7 +80,12 @@ class WakeWordEngine {
             // latency for wake-word spotting than substring-matching a
             // free-form transcript.
             val grammar = JSONArray(WakePhrases.grammarVocabulary() + "[unk]").toString()
-            recognizer = Recognizer(model, SAMPLE_RATE.toFloat(), grammar)
+            recognizer = Recognizer(model, SAMPLE_RATE.toFloat(), grammar).apply {
+                // Start, end and confidence of every word: how a call is told from a song.
+                setWords(true)
+                setPartialWords(true)
+            }
+            fedSamples = 0L
             _state.value = EngineState.IDLE
             Log.i(TAG, "Vosk model loaded from $modelPath with grammar: $grammar")
             true
@@ -102,6 +119,8 @@ class WakeWordEngine {
         // somewhere inside it, including the part that preceded the gate
         // opening.
         val recent = RollingAudio(SAMPLE_RATE * RECENT_AUDIO_SECONDS)
+        // Only what the decoder heard, so a word's timing points into it.
+        val fed = RollingAudio(SAMPLE_RATE * RECENT_AUDIO_SECONDS)
 
         try {
             // VOICE_RECOGNITION gets the device's echo cancellation, which
@@ -133,14 +152,14 @@ class WakeWordEngine {
             // The last few frames before the gate opens. Without these the
             // decoder joins the word already in progress and "пятница" arrives
             // as "ница", which matches nothing.
-            val preRoll = ArrayDeque<ByteArray>(gate.preRollFrames)
+            val preRoll = ArrayDeque<ShortArray>(gate.preRollFrames)
 
             while (isActive && _state.value == EngineState.LISTENING) {
                 val read = record.read(buffer, 0, buffer.size)
                 if (read < 0) break
                 if (read <= 0) continue
 
-                val bytes = PcmAudio.toLittleEndian(buffer, read)
+                val frame = buffer.copyOf(read)
                 recent.append(buffer, read)
                 val decision = gate.onFrame(PcmAudio.rms(buffer, read))
 
@@ -152,19 +171,18 @@ class WakeWordEngine {
                 }
 
                 if (!decision.feed) {
-                    preRoll.addLast(bytes)
+                    preRoll.addLast(frame)
                     while (preRoll.size > gate.preRollFrames) preRoll.removeFirst()
                     continue
                 }
 
-                var json: String? = null
                 if (decision.flushPreRoll) {
-                    preRoll.forEach { feed(it) }
+                    preRoll.forEach { feed(it, fed) }
                     preRoll.clear()
                 }
-                json = feed(bytes)
+                val json = feed(frame, fed)
 
-                if (json != null && containsWakePhrase(json)) {
+                if (json != null && containsWakePhrase(json) && believable(json, fed.snapshot())) {
                     detected = true
                     detectedIn = heardText(json)
                     detectedAudio = recent.snapshot()
@@ -230,9 +248,83 @@ class WakeWordEngine {
     }
 
     /** Hands one frame to the decoder and returns whatever it has so far. */
-    private fun feed(bytes: ByteArray): String? =
-        if (recognizer?.acceptWaveForm(bytes, bytes.size) == true) recognizer?.result
+    private fun feed(frame: ShortArray, fed: RollingAudio): String? {
+        val bytes = PcmAudio.toLittleEndian(frame, frame.size)
+        fed.append(frame, frame.size)
+        fedSamples += frame.size
+        return if (recognizer?.acceptWaveForm(bytes, bytes.size) == true) recognizer?.result
         else recognizer?.partialResult
+    }
 
+    /**
+     * Whether a matched call holds up: the name said in a normal length, with
+     * confidence, and not sung. A partial result whose name is still being
+     * said is not believed yet; the next frames decide.
+     */
+    private fun believable(json: String, fed: FloatArray): Boolean {
+        val words = VoskResults.words(json)
+        val verdict = WakeCheck.judge(words, fedSamples.toDouble() / SAMPLE_RATE, VoskResults.isFinal(json))
+        if (verdict == WakeCheck.Verdict.REJECT) Log.i(TAG, "Wake call not believed: $words")
+        val name = WakePhrases.nameIndexIn(words.map { it.text })?.let { words[it] }
+        val sung = verdict == WakeCheck.Verdict.ACCEPT && name != null && sung(name, fed)
+        if (sung) Log.i(TAG, "Wake call was sung, ignored: ${name?.text}")
+        return when {
+            // No timing (an older decoder): judged as before.
+            words.isEmpty() -> true
+            else -> verdict == WakeCheck.Verdict.ACCEPT && !sung
+        }
+    }
 
+    private fun sung(name: WakeCheck.Word, fed: FloatArray): Boolean =
+        sungCheck?.takeIf { it.first == name }?.second
+            ?: Singing.isSung(VoskResults.wordAudio(fed, fedSamples, name)).also { sungCheck = name to it }
+}
+
+/** Reading Vosk's answers: the words with their timing, and whether the answer is final. */
+internal object VoskResults {
+
+    private const val SAMPLE_RATE = 16_000
+
+    /** Judged when a word's timing doesn't fit the audio: the last second. */
+    private const val FALLBACK_SAMPLES = SAMPLE_RATE
+
+    /**
+     * The stretch of [fed] that [word] was said in. [fed] ends at sample
+     * [fedSamples] of everything the decoder has had, which is what Vosk's
+     * times count from.
+     */
+    fun wordAudio(fed: FloatArray, fedSamples: Long, word: WakeCheck.Word): FloatArray {
+        val fromEnd = (fedSamples - word.start * SAMPLE_RATE).toInt()
+        val untilEnd = (fedSamples - word.end * SAMPLE_RATE).toInt().coerceAtLeast(0)
+        return if (fromEnd in (untilEnd + 1)..fed.size) {
+            fed.copyOfRange(fed.size - fromEnd, fed.size - untilEnd)
+        } else {
+            fed.copyOfRange(maxOf(0, fed.size - FALLBACK_SAMPLES), fed.size)
+        }
+    }
+
+    /** Words with their timing, from a final ("result") or partial ("partial_result") answer. */
+    fun words(jsonResult: String): List<WakeCheck.Word> = try {
+        val obj = JSONObject(jsonResult)
+        val list = obj.optJSONArray("result") ?: obj.optJSONArray("partial_result")
+        if (list == null) {
+            emptyList()
+        } else {
+            (0 until list.length()).map { i ->
+                val w = list.getJSONObject(i)
+                WakeCheck.Word(
+                    w.optString("word"), w.optDouble("start"), w.optDouble("end"),
+                    if (w.has("conf")) w.optDouble("conf") else null
+                )
+            }
+        }
+    } catch (_: Exception) {
+        emptyList()
+    }
+
+    fun isFinal(jsonResult: String): Boolean = try {
+        !JSONObject(jsonResult).has("partial")
+    } catch (_: Exception) {
+        false
+    }
 }

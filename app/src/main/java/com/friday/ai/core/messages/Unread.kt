@@ -14,7 +14,8 @@ object Unread {
 
     /** A name said in answer to "чьё прочитать?" is at most this many words. */
     private const val MAX_PICK_WORDS = 3
-    private const val PICK_SCORE = 70
+    /** Said in answer to a short list, a near-spelling is still clearly one of them. */
+    private const val PICK_SCORE = ContactMatcher.FUZZY
 
     /** Words around a name in "давай сначала от Фирдавса". */
     private val PICK_FILLER = setOf(

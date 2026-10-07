@@ -101,6 +101,8 @@ object PeopleResolver {
         val (best, bestScore) = ranked.first()
         val close = ranked.filter { (_, score) -> bestScore - score < CLEAR_LEAD }
         return when {
+            // Only spelled alike: asked, never called on a guess.
+            bestScore == ContactMatcher.FUZZY -> Result.Ambiguous(close.take(MAX_CANDIDATES).map { it.first })
             close.size == 1 -> Result.Found(best)
             // A starred contact among equals is the one the user means.
             close.count { it.first.starred } == 1 -> Result.Found(close.first { it.first.starred }.first)

@@ -7,6 +7,7 @@ import android.util.Log
 import com.friday.ai.core.PcmAudio
 import com.friday.ai.core.RollingAudio
 import com.friday.ai.core.VoiceTurn
+import com.friday.ai.core.people.NameHints
 import com.friday.ai.data.remote.GroqApiService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -68,6 +69,9 @@ class WhisperTranscriber(
      * overlay's visualiser cares, so nothing else should have to implement it.
      */
     var onLevel: ((Float) -> Unit)? = null
+
+    /** Names to expect (see [NameHints]); null for none. */
+    var hints: () -> String? = { null }
 
     private var effects: AudioEffects? = null
 
@@ -228,12 +232,13 @@ class WhisperTranscriber(
 
         val wavFile = File(cacheDir, "whisper_input.wav")
         writeWav(wavFile, capture.pcm, SAMPLE_RATE)
-        val text = groqApi.transcribeAudio(apiKey, wavFile)
+        val prompt = runCatching { hints() }.getOrNull()
+        val text = groqApi.transcribeAudio(apiKey, wavFile, prompt = prompt)
         wavFile.delete()
 
         when {
             verdict?.await() == false -> VoiceTurn.Outcome.Stranger
-            text.isBlank() -> VoiceTurn.Outcome.Nothing
+            text.isBlank() || NameHints.isEcho(text, prompt) -> VoiceTurn.Outcome.Nothing
             else -> {
                 withContext(Dispatchers.Main) { listener?.onTranscriptionResult(text) }
                 VoiceTurn.Outcome.Heard(text)

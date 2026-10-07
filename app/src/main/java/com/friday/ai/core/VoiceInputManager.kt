@@ -16,11 +16,12 @@ import kotlinx.coroutines.launch
 class VoiceInputManager(
     private val context: Context,
     private val groqApi: GroqApiService,
-    private val prefDao: UserPreferenceDao
+    private val prefDao: UserPreferenceDao,
+    private val speechHints: com.friday.ai.service.SpeechHints
 ) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-    private val transcriber = WhisperTranscriber(groqApi, context.cacheDir)
+    private val transcriber = WhisperTranscriber(groqApi, context.cacheDir).apply { hints = speechHints::prompt }
 
     private val _recognizedText = MutableStateFlow<String?>(null)
     val recognizedText: StateFlow<String?> = _recognizedText.asStateFlow()
