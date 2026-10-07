@@ -16,6 +16,9 @@ class SpeakerGate(private val embedder: SpeakerEmbedder) {
 
     private companion object {
         const val TAG = "SpeakerGate"
+
+        /** How much below the profile's threshold a lone wake word may score. */
+        const val WAKE_SLACK = 0.06f
     }
 
     @Volatile
@@ -31,9 +34,13 @@ class SpeakerGate(private val embedder: SpeakerEmbedder) {
         )
     }
 
-    /** Whether the wake word in [audio] came from the owner. */
+    /**
+     * Whether the wake word in [audio] came from the owner. Only the spoken
+     * part is checked, like the enrolment; and a single short word scores a
+     * little lower than a phrase, so it gets a little slack.
+     */
     fun admitsWake(audio: FloatArray): Boolean =
-        profile?.let { isOwner(it, audio, "wake word") } ?: true
+        profile?.let { isOwner(it, com.friday.ai.core.VoiceTrim.speech(audio), "wake word", WAKE_SLACK) } ?: true
 
     /**
      * The check applied to what is said after the wake word, or null when
@@ -42,16 +49,19 @@ class SpeakerGate(private val embedder: SpeakerEmbedder) {
      */
     fun commandCheck(): ((FloatArray) -> Boolean)? {
         val p = profile?.takeIf { it.coversCommands } ?: return null
-        return { audio -> isOwner(p, audio, "command") }
+        return { audio -> isOwner(p, com.friday.ai.core.VoiceTrim.speech(audio), "command") }
     }
 
-    private fun isOwner(p: VoiceProfile.Profile, audio: FloatArray, what: String): Boolean {
+    private fun isOwner(p: VoiceProfile.Profile, audio: FloatArray, what: String, slack: Float = 0f): Boolean {
         val embedding = embedder.embed(audio) ?: run {
             Log.w(TAG, "Could not embed $what audio; letting it through")
             return true
         }
         val score = VoiceProfile.score(p, embedding)
-        Log.i(TAG, "Speaker score for %s %.3f against %.3f".format(what, score, p.threshold))
-        return score >= p.threshold
+        val threshold = p.threshold - slack
+        val passed = score >= threshold
+        Log.i(TAG, "Speaker score for %s %.3f against %.3f".format(what, score, threshold))
+        VoiceChecks.record(what, score, threshold, passed)
+        return passed
     }
 }

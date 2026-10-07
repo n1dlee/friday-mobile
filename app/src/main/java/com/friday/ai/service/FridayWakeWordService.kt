@@ -204,7 +204,7 @@ class FridayWakeWordService : Service() {
             ),
             session = session
         )
-        wake.onWake = { heard -> conversation.onWake(heard) }
+        wake.onWake = { heard, continuing, audio -> conversation.onWake(heard, continuing, audio) }
         overlay.onDismissed = {
             // The conversation is over: give the audio back. A player that was
             // told to pause must not take that as its cue to play again.
@@ -248,9 +248,9 @@ class FridayWakeWordService : Service() {
 
     private suspend fun begin() {
         gate.load(prefDao.get(PREF_VOICE_PROFILE))
-        prefDao.get("whisper_threshold")?.toDoubleOrNull()?.let { transcriber.silenceThreshold = it }
+        prefDao.get(VoiceCalibrator.PREF_WHISPER)?.toDoubleOrNull()?.let { transcriber.silenceThreshold = it }
         wakeWordOn = prefDao.get("wake_word_enabled") == "true"
-        if (wakeWordOn && wake.initialise(prefDao.get("wake_threshold")?.toDoubleOrNull())) wake.resume()
+        if (wakeWordOn && wake.initialise(prefDao.get(VoiceCalibrator.PREF_WAKE)?.toDoubleOrNull())) wake.resume()
         if (wakeWordOn) watchLinks()
         // Calls and messages the notification listener heard about.
         scope.launch {

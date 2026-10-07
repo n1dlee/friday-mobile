@@ -227,6 +227,15 @@ internal fun VoiceProfilePanel(viewModel: SettingsViewModel) {
             valueColor = if (current?.coversCommands == true) ArcCyan else ErrorColor
         )
         HudNote(profileText(current))
+        // The last checks, so a rejection has a reason: the score against the bar.
+        val checks by com.friday.ai.service.voice.VoiceChecks.recent.collectAsStateWithLifecycle()
+        checks.take(3).forEach { c ->
+            HudReadout(
+                if (c.what == "wake word") "Слово «Пятница»" else "Команда",
+                "%.2f / %.2f %s".format(c.score, c.threshold, if (c.passed) "✓" else "✗"),
+                valueColor = if (c.passed) ArcCyan else ErrorColor
+            )
+        }
         if (enrolment.total > 0) {
             LinearProgressIndicator(
                 progress = { enrolment.recorded.toFloat() / enrolment.total },

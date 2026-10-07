@@ -46,6 +46,7 @@ class VoiceIO(
  * that report reopened the microphone alongside the new turn, so one spoken
  * command was recorded, and carried out, twice.
  */
+@Suppress("TooManyFunctions") // one function per step of a spoken exchange
 class VoiceConversation(
     private val scope: CoroutineScope,
     private val io: VoiceIO,
@@ -77,8 +78,15 @@ class VoiceConversation(
     var speaking = false
         private set
 
-    /** The owner said "Пятница" (already verified by the wake listener). */
-    fun onWake(heard: String) {
+    /**
+     * The owner said "Пятница" (already verified by the wake listener).
+     *
+     * With [continuing], they went straight on ("Пятница, включи музыку"):
+     * no greeting — it would talk over them — and the recording starts at
+     * once, with [lead] (the audio up to the name) in front so the first
+     * words of the command aren't lost.
+     */
+    fun onWake(heard: String, continuing: Boolean = false, lead: FloatArray? = null) {
         scope.launch {
             val mine = ++turn
             // Music stops before anything is said or heard: the recording is
@@ -94,9 +102,9 @@ class VoiceConversation(
 
             // Cutting Friday off and then being greeted would be absurd —
             // that user already knows they were heard.
-            if (bargedIn) {
+            if (bargedIn || continuing) {
                 io.overlay.show(FridayOverlayManager.State.LISTENING)
-                listen(mine, isFollowUp = false)
+                listen(mine, isFollowUp = false, lead = lead.takeIf { continuing })
                 return@launch
             }
 
@@ -142,8 +150,12 @@ class VoiceConversation(
      * answered and listens on, with no new wake word) ends quietly on silence
      * instead of complaining "не расслышала".
      */
-    internal suspend fun listen(mine: Int, isFollowUp: Boolean, attempt: Int = 1) {
+    internal suspend fun listen(mine: Int, isFollowUp: Boolean, attempt: Int = 1, lead: FloatArray? = null) {
         io.transcriber.listener = overlayFeedback
+        // The wake listener may still hold the microphone (it listens while
+        // Friday speaks, so she can be interrupted). Two recorders at once
+        // left one of them with silence: "Не расслышала" for no reason.
+        io.wake.stop()
         // With no network Whisper cannot transcribe at all; fall back to the
         // on-device grammar rather than failing silently.
         if (io.offline.isOffline()) {
@@ -156,15 +168,30 @@ class VoiceConversation(
             return
         }
 
-        val outcome = io.transcriber.recordAndTranscribe(apiKey, gate.commandCheck())
+        val outcome = if (lead != null) io.transcriber.recordAndTranscribe(apiKey, gate.commandCheck(), lead)
+        else io.transcriber.recordAndTranscribe(apiKey, gate.commandCheck())
         if (mine != turn) {
             // Interrupted while this was recording: the new turn owns the
             // conversation now, and this audio was its wake word anyway.
             Log.i(TAG, "Dropped a recording from an interrupted turn")
             return
         }
+        // Said in one breath with the name: the transcript starts with it too.
+        val command = (outcome as? VoiceTurn.Outcome.Heard)?.let { WakePhrases.stripCall(it.text) }
+        // Only the name after all: greet and listen, as for a plain call.
+        if (lead != null && command != null && command.isBlank()) onWake("", continuing = false)
+        else next(mine, outcome, command, isFollowUp, attempt)
+    }
+
+    private suspend fun next(
+        mine: Int,
+        outcome: VoiceTurn.Outcome,
+        command: String?,
+        isFollowUp: Boolean,
+        attempt: Int
+    ) {
         when (VoiceTurn.next(outcome, isFollowUp, attempt, MAX_LISTEN_ATTEMPTS)) {
-            VoiceTurn.Next.PROCESS -> heard(mine, (outcome as VoiceTurn.Outcome.Heard).text)
+            VoiceTurn.Next.PROCESS -> heard(mine, command ?: (outcome as VoiceTurn.Outcome.Heard).text)
             VoiceTurn.Next.LISTEN_AGAIN -> {
                 Log.i(TAG, "Attempt $attempt gave $outcome; listening again")
                 io.overlay.show(FridayOverlayManager.State.LISTENING)

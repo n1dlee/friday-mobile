@@ -16,6 +16,20 @@ class VoiceCalibrator {
         private const val ENCODING = AudioFormat.ENCODING_PCM_16BIT
         private const val SILENCE_DURATION_MS = 2000L
         private const val SPEECH_DURATION_MS = 3000L
+        private const val WAKE_SHARE = 0.15
+        private const val WHISPER_SHARE = 0.12
+        private const val MIN_WAKE = 50.0
+        private const val MAX_WAKE = 600.0
+        private const val MIN_WHISPER = 40.0
+        private const val MAX_WHISPER = 450.0
+
+        /**
+         * Where the thresholds are kept. "_v2": values measured by older
+         * versions came from a different microphone path and are wrong for
+         * this one, so they are left unread until the owner calibrates again.
+         */
+        const val PREF_WAKE = "wake_threshold_v2"
+        const val PREF_WHISPER = "whisper_threshold_v2"
     }
 
     data class CalibrationResult(
@@ -34,14 +48,31 @@ class VoiceCalibrator {
 
     var listener: Listener? = null
 
+    private fun result(ambientNoise: Double, speechEnergy: Double): CalibrationResult {
+        val wakeThreshold = ambientNoise + (speechEnergy - ambientNoise) * WAKE_SHARE
+        val whisperThreshold = ambientNoise + (speechEnergy - ambientNoise) * WHISPER_SHARE
+        return CalibrationResult(
+            ambientNoise = ambientNoise,
+            speechEnergy = speechEnergy,
+            // Capped lower than before: a threshold above ordinary speech is deafness.
+            wakeWordThreshold = wakeThreshold.coerceIn(MIN_WAKE, MAX_WAKE),
+            whisperThreshold = whisperThreshold.coerceIn(MIN_WHISPER, MAX_WHISPER)
+        )
+    }
+
     suspend fun calibrate(): CalibrationResult = withContext(Dispatchers.IO) {
         val bufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL, ENCODING)
             .coerceAtLeast(4096)
 
+        // Measured exactly the way Friday listens: the same source and the
+        // same noise suppression and gain control. Calibrating on MIC (louder,
+        // differently processed on Samsung) gave thresholds the real path's
+        // speech hardly reached, so Friday seemed deaf to her own owner.
         val audioRecord = AudioRecord(
-            MediaRecorder.AudioSource.MIC,
+            MediaRecorder.AudioSource.VOICE_RECOGNITION,
             SAMPLE_RATE, CHANNEL, ENCODING, bufferSize
         )
+        val effects = AudioEffects.attach(audioRecord.audioSessionId)
 
         try {
             audioRecord.startRecording()
@@ -85,18 +116,10 @@ class VoiceCalibrator {
             }
             val speechEnergy = speechEnergies.average()
 
-            val wakeThreshold = ambientNoise + (speechEnergy - ambientNoise) * 0.15
-            val whisperThreshold = ambientNoise + (speechEnergy - ambientNoise) * 0.12
-
             withContext(Dispatchers.Main) { listener?.onPhase(Phase.DONE) }
-
-            CalibrationResult(
-                ambientNoise = ambientNoise,
-                speechEnergy = speechEnergy,
-                wakeWordThreshold = wakeThreshold.coerceIn(50.0, 1000.0),
-                whisperThreshold = whisperThreshold.coerceIn(40.0, 800.0)
-            )
+            result(ambientNoise, speechEnergy)
         } finally {
+            effects.release()
             audioRecord.stopAndRelease(TAG)
         }
     }
