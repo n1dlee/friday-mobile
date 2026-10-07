@@ -215,15 +215,18 @@ internal fun ChatLayout(
             HudTopBar(
                 title = "F.R.I.D.A.Y.",
                 status = status(state),
+                // Two icons each side, so the centred title never runs into them.
                 navigation = {
-                    IconButton(onClick = onMenu) {
-                        Icon(Icons.Filled.Menu, contentDescription = "Журнал разговоров", tint = OnBackground)
+                    Row {
+                        IconButton(onClick = onMenu) {
+                            Icon(Icons.Filled.Menu, contentDescription = "Журнал разговоров", tint = OnBackground)
+                        }
+                        IconButton(onClick = onNotebook) {
+                            Icon(Icons.Filled.Draw, contentDescription = "Блокнот", tint = ArcCyan)
+                        }
                     }
                 },
                 actions = {
-                    IconButton(onClick = onNotebook) {
-                        Icon(Icons.Filled.Draw, contentDescription = "Блокнот", tint = ArcCyan)
-                    }
                     IconButton(onClick = onModes) {
                         Icon(Icons.Filled.AutoAwesome, contentDescription = "Режимы", tint = ArcCyan)
                     }
