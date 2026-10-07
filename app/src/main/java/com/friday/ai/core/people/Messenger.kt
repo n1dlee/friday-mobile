@@ -35,6 +35,11 @@ class PeopleDirectory(private val contacts: ContactsReader, private val device: 
 
     /** "Кого именно: Мамуля или Мамед?" — or why nobody was found. */
     fun notFound(target: String, result: PeopleResolver.Result, russian: Boolean): String = when {
+        result is PeopleResolver.Result.Ambiguous && result.candidates.size == 1 ->
+            result.candidates.single().name.let {
+                if (russian) "Не нашла «$target». Вы про «$it»? Скажите имя ещё раз."
+                else "No \"$target\". Did you mean $it? Say the name again."
+            }
         result is PeopleResolver.Result.Ambiguous ->
             result.candidates.joinToString(if (russian) " или " else " or ") { it.name }
                 .let { if (russian) "Кого именно: $it?" else "Which one: $it?" }

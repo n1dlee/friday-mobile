@@ -162,9 +162,28 @@ object ContactMatcher {
     private const val ONE_WORD = 70
     private const val PREFIX = 50
 
+    /**
+     * Spelled a letter or two differently: "Фирдаус" for Фирдавс, "Аврор"
+     * for Аброр — how speech recognition gets names it doesn't know. Ranked
+     * below every real match, and a caller about to act on it alone should
+     * ask first ("Мадина" is one letter from "Марина").
+     */
+    const val FUZZY = 60
+
+    /** Names shorter than this are too short to be told apart from a typo. */
+    private const val FUZZY_MIN = 5
+    private const val FUZZY_LONG = 8
+
     /** Higher is better; 0 means "not a match". */
     private fun score(queryStems: Set<String>, rawQuery: String, name: String): Int {
-        val contactName = name.lowercase().trim()
+        val lowered = name.lowercase().trim()
+        // Latin "x" is "кс" in Alex but "х" in the Uzbek Shoxrux; both are tried.
+        val readings =
+            if ('x' in lowered) listOf(lowered.replace("x", "h"), lowered.replace("x", "ks")) else listOf(lowered)
+        return readings.maxOf { scoreAs(queryStems, rawQuery, it) }
+    }
+
+    private fun scoreAs(queryStems: Set<String>, rawQuery: String, contactName: String): Int {
         val contactStems = contactName.split(Regex("[^\\p{L}\\p{N}]+")).filter { it.isNotBlank() }.map { stem(it) }
         val prefixes = queryStems.filter { it.length >= MIN_PREFIX }
 
@@ -182,11 +201,39 @@ object ContactMatcher {
             canonical(contactName) == canonical(rawQuery) -> EXACT
             // The whole contact name is one of the query's stems, e.g. "Папа".
             contactStems.size == 1 && contactStems.single() in queryStems -> WHOLE_NAME
+            // Split or joined differently: "Абдул Азиз" for Абдулазиз.
+            joined(contactName).let { it.length >= FUZZY_MIN && it == joined(rawQuery) } -> WHOLE_NAME
             petForm -> PET_FORM
             // One word of a multi-word contact matches, e.g. "Иван Петров".
             contactStems.any { it in queryStems } -> ONE_WORD
+            queryStems.any { q -> contactStems.any { c -> close(q, c) } } -> FUZZY
             prefix -> PREFIX
             else -> 0
         }
+    }
+
+    private fun joined(name: String): String = stem(name.filter { it.isLetter() })
+
+    /** One letter off for an ordinary name, two for a long one. */
+    private fun close(a: String, b: String): Boolean {
+        val shorter = minOf(a.length, b.length)
+        if (shorter < FUZZY_MIN) return false
+        val allowed = if (shorter >= FUZZY_LONG) 2 else 1
+        return kotlin.math.abs(a.length - b.length) <= allowed && distance(a, b) <= allowed
+    }
+
+    /** Levenshtein distance. */
+    private fun distance(a: String, b: String): Int {
+        var previous = IntArray(b.length + 1) { it }
+        for (i in a.indices) {
+            val current = IntArray(b.length + 1)
+            current[0] = i + 1
+            for (j in b.indices) {
+                val cost = if (a[i] == b[j]) 0 else 1
+                current[j + 1] = minOf(current[j] + 1, previous[j + 1] + 1, previous[j] + cost)
+            }
+            previous = current
+        }
+        return previous[b.length]
     }
 }

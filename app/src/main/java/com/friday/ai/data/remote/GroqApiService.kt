@@ -263,7 +263,8 @@ class GroqApiService private constructor(
         }
     }
 
-    fun transcribeAudio(apiKey: String, audioFile: File, language: String? = null): String {
+    /** @param prompt words to expect — the owner's contacts — so names come back spelled right */
+    fun transcribeAudio(apiKey: String, audioFile: File, language: String? = null, prompt: String? = null): String {
         val fileBody = audioFile.asRequestBody("audio/wav".toMediaType())
 
         val multipartBuilder = MultipartBody.Builder()
@@ -274,6 +275,9 @@ class GroqApiService private constructor(
 
         if (language != null) {
             multipartBuilder.addFormDataPart("language", language)
+        }
+        if (prompt != null) {
+            multipartBuilder.addFormDataPart("prompt", prompt)
         }
 
         val httpRequest = Request.Builder()

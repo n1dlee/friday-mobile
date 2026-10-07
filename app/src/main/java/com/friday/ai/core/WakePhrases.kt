@@ -20,7 +20,7 @@ object WakePhrases {
     /** Spellings the Russian recogniser produces for the English "Friday". */
     private val ENGLISH_NAME = listOf(
         "фрайдей", "фрайди", "фрайде", "фрайд", "фрэйди", "фрейди",
-        "прайдей", "прайди", "фрай", "friday"
+        "прайдей", "прайди", "friday"
     )
 
     /** The Russian name. */
@@ -57,6 +57,9 @@ object WakePhrases {
      * @param heard text from the recogniser, already lower-cased or not.
      */
     fun isWakeCall(heard: String): Boolean = nameIndex(normalize(heard)) != null
+
+    /** Which of the decoder's [words] is the name, or null if they are not a wake call. */
+    fun nameIndexIn(words: List<String>): Int? = nameIndex(words.map { it.lowercase().trim() })
 
     /**
      * Index of the word that is the name, or null if this isn't a wake call.

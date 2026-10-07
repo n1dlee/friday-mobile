@@ -78,7 +78,7 @@ val appModule = module {
     // Core
     // Tool-carrying prompts get the phone's context: country, installed apps.
     single { SystemPromptBuilder(deviceContext = { get<com.friday.ai.core.DeviceContext>().describe() }) }
-    single { VoiceInputManager(androidContext(), get(), get()) }
+    single { VoiceInputManager(androidContext(), get(), get(), get()) }
     single { CommandRouter() }
     single { ContactsReader(androidContext()) }
     single { CalendarWriter(androidContext()) }
@@ -108,6 +108,7 @@ val appModule = module {
     single { com.friday.ai.service.WeatherHere(androidContext(), get(), get()) }
     single { com.friday.ai.core.people.Caller(androidContext(), get(), get(), get(), get(), get()) }
     single { com.friday.ai.service.messages.SpamCheck(get()) }
+    single { com.friday.ai.service.SpeechHints(get(), get()) }
     single { com.friday.ai.service.messages.MessengerInbox(get<com.friday.ai.service.messages.SpamCheck>()::isSpam) }
     single { com.friday.ai.service.messages.MessageSummarizer(get(), get(), get()) }
     single { com.friday.ai.service.messages.Announcer() }
