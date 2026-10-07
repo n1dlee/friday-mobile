@@ -98,10 +98,6 @@ fun SettingsScreen(
     val calibrationEnergy by viewModel.calibrationEnergy.collectAsStateWithLifecycle()
     val isCalibrated by viewModel.isCalibrated.collectAsStateWithLifecycle()
     val calibrationResult by viewModel.calibrationResult.collectAsStateWithLifecycle()
-    val lazuriUrl by viewModel.lazuriUrl.collectAsStateWithLifecycle()
-    val lazuriApiKey by viewModel.lazuriApiKey.collectAsStateWithLifecycle()
-    val lazuriStatus by viewModel.lazuriStatus.collectAsStateWithLifecycle()
-    val lazuriError by viewModel.lazuriError.collectAsStateWithLifecycle()
     val mapsProvider by viewModel.mapsProvider.collectAsStateWithLifecycle()
     val announceCalls by viewModel.announceCalls.collectAsStateWithLifecycle()
     val announceMessages by viewModel.announceMessages.collectAsStateWithLifecycle()
@@ -578,7 +574,7 @@ fun SettingsScreen(
                 onClick = onOpenDashboard,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Open Lazuri dashboard")
+                Text("Что Пятница знает обо мне")
             }
             Spacer(modifier = Modifier.height(8.dp))
             Text(
@@ -590,75 +586,12 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             Text(
-                "Lazuri (shared memory across devices)",
+                "Перенос на другой телефон",
                 style = MaterialTheme.typography.headlineMedium,
                 color = MaterialTheme.colorScheme.onBackground
             )
             Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                "Connect to your Lazuri Core server so facts and conversations sync " +
-                    "with your other devices (PC, future desktop assistant).",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = lazuriUrl,
-                onValueChange = viewModel::onLazuriUrlChange,
-                label = { Text("Server address") },
-                placeholder = { Text("http://100.x.y.z:8080") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                enabled = lazuriStatus != SettingsViewModel.LazuriStatus.CONNECTED
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            OutlinedTextField(
-                value = lazuriApiKey,
-                onValueChange = viewModel::onLazuriApiKeyChange,
-                label = { Text("X-API-Key") },
-                visualTransformation = PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                enabled = lazuriStatus != SettingsViewModel.LazuriStatus.CONNECTED
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-
-            when (lazuriStatus) {
-                SettingsViewModel.LazuriStatus.CONNECTED -> {
-                    Text(
-                        "Connected to Lazuri",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.tertiary
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedButton(
-                        onClick = { viewModel.disconnectLazuri() },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Disconnect")
-                    }
-                }
-                SettingsViewModel.LazuriStatus.CONNECTING -> {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                }
-                else -> {
-                    Button(
-                        onClick = { viewModel.connectToLazuri() },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Connect")
-                    }
-                    if (lazuriStatus == SettingsViewModel.LazuriStatus.ERROR && lazuriError != null) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            lazuriError ?: "",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error
-                        )
-                    }
-                }
-            }
+            TransferSection()
 
             Spacer(modifier = Modifier.height(24.dp))
             HorizontalDivider()

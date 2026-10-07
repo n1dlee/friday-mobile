@@ -158,7 +158,7 @@ app/src/main/java/com/friday/ai
 ├── agent/        LLM agent: tools, light/full kits, calculator, learned commands
 ├── command/      CommandExecutor and its phone / planner / info actions
 ├── core/         Pure logic: router, parsers, voice gate, fbank, people & channels
-├── data/         Room database, Groq / Gmail / weather / Lazuri clients
+├── data/         Room database, Groq / Gmail / weather clients, settings export
 ├── domain/       Models and use cases
 ├── service/      Wake-word service, voice loop, TTS, notifications, mail, workers
 └── ui/           Compose screens: chat, settings, dashboard, overlay
@@ -186,10 +186,10 @@ No secrets are needed to build. Your Groq key goes into the app's Settings, not 
 - [x] LLM agent with tools, learned commands, web search
 - [x] Context-aware messaging and calls (SMS / WhatsApp / Telegram)
 - [x] Chats from notifications: read, reply, announce
-- [ ] Encrypted key storage and a first-run setup wizard
-- [ ] Diagnostics screen with exportable logs
-- [ ] Two-way sync with Lazuri Core (memory shared with Friday Desktop)
-- [ ] Routines ("protocols"), car and home modes
+- [x] Encrypted key storage, diagnostics screen, verified hand-offs to other apps
+- [x] Move to a new phone: everything in one passphrase-encrypted file
+- [ ] Modes you create by voice ("create a sad mode: Spotify with sad songs"), with automatic undo
+- [ ] Routines triggered by NFC tags, time, the car's Bluetooth, home Wi-Fi
 - [ ] Camera "what is this?", Health Connect
 
 ## 🤝 Contributing

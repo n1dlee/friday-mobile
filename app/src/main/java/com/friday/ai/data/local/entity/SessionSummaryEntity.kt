@@ -1,6 +1,7 @@
 package com.friday.ai.data.local.entity
 
 import androidx.room.Entity
+import kotlinx.serialization.Serializable
 import androidx.room.PrimaryKey
 
 /**
@@ -14,6 +15,7 @@ import androidx.room.PrimaryKey
  * [messageCount] records what the summary was written from, so it can be
  * regenerated only when the conversation has meaningfully moved on.
  */
+@Serializable
 @Entity(tableName = "session_summaries")
 data class SessionSummaryEntity(
     @PrimaryKey val sessionId: String,

@@ -74,6 +74,14 @@ class SecurePreferenceDao(
         legacy
     }
 
+    /**
+     * [row] as it should be written straight into the table: sealed if it is
+     * a secret. For settings import, which writes all rows in one transaction
+     * without going through [set].
+     */
+    fun forStorage(row: UserPreferenceEntity): UserPreferenceEntity =
+        if (row.key in secretKeys && !row.value.startsWith(SEALED_PREFIX)) seal(row) else row
+
     private suspend fun open(key: String, stored: String?): String? = when {
         stored.isNullOrEmpty() -> stored
         stored.startsWith(SEALED_PREFIX) -> try {

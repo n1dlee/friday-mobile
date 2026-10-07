@@ -1,6 +1,7 @@
 package com.friday.ai.data.local.entity
 
 import androidx.room.Entity
+import kotlinx.serialization.Serializable
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
@@ -11,6 +12,7 @@ import androidx.room.PrimaryKey
  * turns share the same session ids, so a conversation started by talking
  * shows up in the chat history and can be continued by typing.
  */
+@Serializable
 @Entity(
     tableName = "chat_messages",
     indices = [Index("sessionId"), Index("timestamp")]

@@ -38,7 +38,7 @@ object Diagnostics {
         MICROPHONE, POST_NOTIFICATIONS, OVERLAY, NOTIFICATION_ACCESS, BATTERY,
         CONTACTS, PHONE, CALENDAR, LOCATION,
 
-        /** Friday's own Settings screen: API key, wake word, voice model and profile, Gmail, Lazuri. */
+        /** Friday's own Settings screen: API key, wake word, voice model and profile, Gmail, export. */
         FRIDAY_SETTINGS
     }
 
@@ -149,11 +149,8 @@ object Diagnostics {
         Check(
             "gmail", "Gmail", "Connected", "Not connected: mail commands are off",
             Fix.FRIDAY_SETTINGS, optional = true
-        ).row(Group.INTEGRATIONS, c.integrations.gmail),
-        Check(
-            "lazuri", "Lazuri", "Connected: memory is shared", "Not connected: memory stays on this phone",
-            Fix.FRIDAY_SETTINGS, optional = true
-        ).row(Group.INTEGRATIONS, c.integrations.lazuri)
+        ).row(Group.INTEGRATIONS, c.integrations.gmail)
+        // Lazuri is deferred: Friday lives on one phone, and moves with settings export.
     )
 
     private fun device(c: FridayCapabilities): List<Row> {
