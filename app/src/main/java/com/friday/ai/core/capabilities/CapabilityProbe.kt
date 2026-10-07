@@ -85,7 +85,10 @@ class CapabilityProbe(private val context: Context, private val prefs: UserPrefe
             calendar = granted(Manifest.permission.READ_CALENDAR) && granted(Manifest.permission.WRITE_CALENDAR),
             location = granted(Manifest.permission.ACCESS_FINE_LOCATION) ||
                 granted(Manifest.permission.ACCESS_COARSE_LOCATION),
-            batteryExempt = power.isIgnoringBatteryOptimizations(context.packageName)
+            batteryExempt = power.isIgnoringBatteryOptimizations(context.packageName),
+            dndAccess = (context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager)
+                .isNotificationPolicyAccessGranted,
+            writeSettings = Settings.System.canWrite(context)
         )
     }
 

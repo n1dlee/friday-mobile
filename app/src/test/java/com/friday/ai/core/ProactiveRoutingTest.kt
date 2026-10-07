@@ -83,15 +83,15 @@ class ProactiveRoutingTest {
     }
 
     @Test
-    fun `wifi and bluetooth open a panel rather than claiming to toggle`() {
-        // Android forbids apps from switching these; the command still routes
-        // so Friday can say so and open the setting.
+    fun `wifi and bluetooth say what is wanted, the controller decides how`() {
+        // Android forbids apps from switching these; the intent still routes
+        // so Friday can check the state, say so and open the setting.
         assertEquals(
-            DeviceAction.OPEN_WIFI_PANEL,
+            DeviceAction.WIFI_ON,
             (router.route("включи wifi") as CommandResult.DeviceControl).action
         )
         assertEquals(
-            DeviceAction.OPEN_BLUETOOTH_PANEL,
+            DeviceAction.BLUETOOTH_ON,
             (router.route("включи блютуз") as CommandResult.DeviceControl).action
         )
     }

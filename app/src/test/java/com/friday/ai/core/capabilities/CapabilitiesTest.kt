@@ -36,7 +36,8 @@ import org.junit.Test
 private val allGood = FridayCapabilities(
     permissions = FridayCapabilities.Permissions(
         microphone = true, overlay = true, notificationListener = true, postNotifications = true,
-        contacts = true, phone = true, calendar = true, location = true, batteryExempt = true
+        contacts = true, phone = true, calendar = true, location = true, batteryExempt = true,
+        dndAccess = true, writeSettings = true
     ),
     integrations = FridayCapabilities.Integrations(groqKey = true, gmail = true, lazuri = true),
     voice = FridayCapabilities.Voice(wakeWordEnabled = true, wakeModelReady = true, voiceProfile = true, listening = true)

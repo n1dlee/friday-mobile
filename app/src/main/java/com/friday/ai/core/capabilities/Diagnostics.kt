@@ -36,7 +36,7 @@ object Diagnostics {
     /** What tapping "fix" does; the screen maps each to the right system action. */
     enum class Fix {
         MICROPHONE, POST_NOTIFICATIONS, OVERLAY, NOTIFICATION_ACCESS, BATTERY,
-        CONTACTS, PHONE, CALENDAR, LOCATION,
+        CONTACTS, PHONE, CALENDAR, LOCATION, DND_ACCESS, WRITE_SETTINGS,
 
         /** Friday's own Settings screen: API key, wake word, voice model and profile, Gmail, export. */
         FRIDAY_SETTINGS
@@ -142,7 +142,15 @@ object Diagnostics {
         Check(
             "location", "Геопозиция", "Разрешена",
             "Запрещена: нет погоды «здесь» и напоминаний у магазинов", Fix.LOCATION
-        ).row(Group.PHONE, c.permissions.location)
+        ).row(Group.PHONE, c.permissions.location),
+        Check(
+            "dnd_access", "Доступ к «Не беспокоить»", "Есть",
+            "Нет: «не беспокоить» и беззвучный режим только открывают настройку", Fix.DND_ACCESS
+        ).row(Group.PHONE, c.permissions.dndAccess),
+        Check(
+            "write_settings", "Изменение системных настроек", "Разрешено",
+            "Запрещено: яркость не меняется голосом", Fix.WRITE_SETTINGS, optional = true
+        ).row(Group.PHONE, c.permissions.writeSettings)
     )
 
     private fun integrations(c: FridayCapabilities) = listOf(

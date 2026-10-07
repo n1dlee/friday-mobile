@@ -44,7 +44,11 @@ data class FridayCapabilities(
         val phone: Boolean = false,
         val calendar: Boolean = false,
         val location: Boolean = false,
-        val batteryExempt: Boolean = false
+        val batteryExempt: Boolean = false,
+        /** "Do Not Disturb access": DND and fully silent mode. */
+        val dndAccess: Boolean = false,
+        /** "Modify system settings": brightness. */
+        val writeSettings: Boolean = false
     )
 
     data class Integrations(

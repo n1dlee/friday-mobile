@@ -81,7 +81,7 @@ val appModule = module {
     single { CommandRouter() }
     single { ContactsReader(androidContext()) }
     single { CalendarWriter(androidContext()) }
-    single { DeviceController(androidContext()) }
+    single { DeviceController(com.friday.ai.core.AndroidDeviceKnobs(androidContext())) }
     single { com.friday.ai.core.MediaLauncher(androidContext()) }
     single { com.friday.ai.core.MediaSessions(androidContext()) }
     single { com.friday.ai.core.PlaybackStarter(androidContext(), get(), get(), get()) }

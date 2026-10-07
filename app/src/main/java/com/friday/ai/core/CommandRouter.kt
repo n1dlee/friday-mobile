@@ -445,7 +445,8 @@ class CommandRouter(private val now: () -> java.time.LocalDateTime = java.time.L
     }
 
     private fun routeDeviceControl(text: String): CommandResult? {
-        val lower = text.lowercase()
+        val lower = text.lowercase().replace('ё', 'е')
+        (DevicePhrases.ringer(lower) ?: DevicePhrases.brightness(lower))?.let { return it }
 
         volumeSetPattern.find(lower)?.let { m ->
             m.groupValues[1].toIntOrNull()?.let { level ->
@@ -486,10 +487,14 @@ class CommandRouter(private val now: () -> java.time.LocalDateTime = java.time.L
 
             lower.contains("wi-fi") || lower.contains("wifi") || lower.contains("вай-фай") ||
                 lower.contains("вайфай") ->
-                CommandResult.DeviceControl(DeviceAction.OPEN_WIFI_PANEL)
+                CommandResult.DeviceControl(
+                    DevicePhrases.onOff(lower, DeviceAction.WIFI_ON, DeviceAction.WIFI_OFF, DeviceAction.OPEN_WIFI_PANEL)
+                )
 
             lower.contains("bluetooth") || lower.contains("блютус") || lower.contains("блютуз") ->
-                CommandResult.DeviceControl(DeviceAction.OPEN_BLUETOOTH_PANEL)
+                CommandResult.DeviceControl(
+                    DevicePhrases.onOff(lower, DeviceAction.BLUETOOTH_ON, DeviceAction.BLUETOOTH_OFF, DeviceAction.OPEN_BLUETOOTH_PANEL)
+                )
 
             else -> null
         }

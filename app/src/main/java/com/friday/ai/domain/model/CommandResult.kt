@@ -139,6 +139,12 @@ enum class MediaAction(val startsPlayback: Boolean) {
     PREVIOUS(false)
 }
 
+/**
+ * A change to the phone's own settings, named by what it achieves rather
+ * than how: whether Wi-Fi can actually be switched or only its panel opened
+ * is [com.friday.ai.core.DeviceController]'s business, and it says which.
+ * Levels (volume, brightness) travel next to the action, in percent.
+ */
 enum class DeviceAction {
     VOLUME_UP,
     VOLUME_DOWN,
@@ -147,6 +153,19 @@ enum class DeviceAction {
     UNMUTE,
     DND_ON,
     DND_OFF,
+    /** Ringer: sound, vibration only, or fully silent. */
+    RINGER_NORMAL,
+    RINGER_VIBRATE,
+    RINGER_SILENT,
+    BRIGHTNESS_SET,
+    BRIGHTNESS_UP,
+    BRIGHTNESS_DOWN,
+    BRIGHTNESS_AUTO,
+    WIFI_ON,
+    WIFI_OFF,
+    BLUETOOTH_ON,
+    BLUETOOTH_OFF,
+    /** "Wi-Fi" / "Bluetooth" without on or off: the settings, to look or choose. */
     OPEN_WIFI_PANEL,
     OPEN_BLUETOOTH_PANEL
 }

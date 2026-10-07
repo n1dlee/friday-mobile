@@ -123,7 +123,7 @@ class AgentToolsTest {
         assertTrue(call("set_alarm", """{"hour":31,"minute":0}""") is AgentTools.Call.Invalid)
         assertTrue(call("set_alarm", """{"minute":0}""") is AgentTools.Call.Invalid)
         assertTrue(call("set_timer", """{"seconds":0}""") is AgentTools.Call.Invalid)
-        assertTrue(call("phone_control", """{"action":"reboot"}""") is AgentTools.Call.Invalid)
+        assertTrue(call("phone_control", """{"target":"reboot"}""") is AgentTools.Call.Invalid)
         assertTrue(call("create_event", """{"title":"x","start":"завтра"}""") is AgentTools.Call.Invalid)
         assertTrue(call("teleport", "{}") is AgentTools.Call.Invalid)
     }
@@ -145,7 +145,7 @@ class AgentToolsTest {
         )
         assertEquals(
             CommandResult.DeviceControl(DeviceAction.VOLUME_SET, 40),
-            command("phone_control", """{"action":"volume_set","level":40}""")
+            command("phone_control", """{"target":"volume","level":40}""")
         )
         assertEquals(CommandResult.OpenCamera(CameraMode.SELFIE), command("camera", """{"mode":"selfie"}"""))
         assertEquals(CommandResult.Weather(null, 1), command("weather", """{"day_offset":1}"""))

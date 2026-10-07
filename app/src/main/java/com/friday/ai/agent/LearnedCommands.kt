@@ -14,7 +14,6 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * Phrases the model has worked out once, carried out directly from then on.
@@ -40,8 +39,6 @@ class LearnedCommands(
      */
     private val available: (tool: String) -> Boolean = { true }
 ) {
-
-    data class Shortcut(val tool: String, val args: JsonObject)
 
     companion object {
         private const val TAG = "LearnedCommands"
@@ -87,7 +84,7 @@ class LearnedCommands(
         fun isCorrection(text: String): Boolean = CORRECTION.containsMatchIn(key(text))
     }
 
-    private val shortcuts = ConcurrentHashMap<String, Shortcut>()
+    private val shortcuts = ConcurrentHashMap<String, ActionEnvelope>()
 
     @Volatile
     private var lastLearned: Pair<String, Long>? = null
@@ -97,7 +94,15 @@ class LearnedCommands(
         scope.launch {
             runCatching { prefs.withPrefix(PREFIX) }
                 .onSuccess { rows ->
-                    rows.forEach { row -> parse(row.value)?.let { shortcuts[row.key.removePrefix(PREFIX)] = it } }
+                    rows.forEach { row ->
+                        val stored = ActionSchema.parse(row.value)
+                        if (stored == null) {
+                            // Written by a version whose meaning can't be carried over: dropped, not guessed.
+                            Log.w(TAG, "Dropping \"${row.key.removePrefix(PREFIX)}\": can't be read in this version")
+                        } else {
+                            shortcuts[row.key.removePrefix(PREFIX)] = stored
+                        }
+                    }
                 }
                 .onFailure { Log.w(TAG, "Could not load: ${it.message}") }
         }
@@ -113,10 +118,11 @@ class LearnedCommands(
         val args = runCatching { groqJson.parseToJsonElement(arguments).jsonObject }.getOrNull() ?: return
         if (!worthLearning(text, tool, args)) return
         val k = key(text)
-        shortcuts[k] = Shortcut(tool, args)
+        val envelope = ActionEnvelope(tool, args)
+        shortcuts[k] = envelope
         lastLearned = k to clock()
         Log.i(TAG, "Learned \"$k\" -> $tool$args")
-        scope.launch { prefs.set(UserPreferenceEntity(PREFIX + k, serialise(Shortcut(tool, args)))) }
+        scope.launch { prefs.set(UserPreferenceEntity(PREFIX + k, envelope.toJson())) }
     }
 
     /**
@@ -135,7 +141,7 @@ class LearnedCommands(
         return k
     }
 
-    fun all(): Map<String, Shortcut> = shortcuts.toMap()
+    fun all(): Map<String, ActionEnvelope> = shortcuts.toMap()
 
     fun forget(phrase: String) {
         shortcuts.remove(phrase)
@@ -146,11 +152,4 @@ class LearnedCommands(
         shortcuts.clear()
         scope.launch { prefs.deleteWithPrefix(PREFIX) }
     }
-
-    private fun serialise(s: Shortcut) = JsonObject(mapOf("tool" to JsonPrimitive(s.tool), "args" to s.args)).toString()
-
-    private fun parse(value: String): Shortcut? = runCatching {
-        val o = groqJson.parseToJsonElement(value).jsonObject
-        Shortcut(o.getValue("tool").jsonPrimitive.content, o.getValue("args").jsonObject)
-    }.getOrNull()
 }
