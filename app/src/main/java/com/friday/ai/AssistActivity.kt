@@ -1,7 +1,5 @@
 package com.friday.ai
 
-import android.app.Activity
-import android.os.Bundle
 import com.friday.ai.service.FridayWakeWordService
 
 /**
@@ -17,15 +15,9 @@ import com.friday.ai.service.FridayWakeWordService
  * The press is not a voice: with a voice profile recorded, what is said
  * next is still checked against it.
  */
-class AssistActivity : Activity() {
+class AssistActivity : HandOffActivity() {
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        // Started while this activity is in the foreground, so Android allows a
-        // microphone service even if Friday wasn't running.
-        FridayWakeWordService.invoke(this)
-        finish()
-        @Suppress("DEPRECATION")
-        overridePendingTransition(0, 0)
-    }
+    // Started while this activity is in the foreground, so Android allows a
+    // microphone service even if Friday wasn't running.
+    override fun handOff() = FridayWakeWordService.invoke(this)
 }
