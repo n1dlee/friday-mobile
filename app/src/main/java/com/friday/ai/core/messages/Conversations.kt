@@ -63,13 +63,6 @@ object Conversations {
         }
     }
 
-    /** What is said when a message arrives. */
-    fun announcement(chat: Conversation, message: InboxMessage, russian: Boolean): String {
-        val who = if (chat.isGroup) "${message.sender} ${if (russian) "в" else "in"} «${chat.title}»" else chat.title
-        val where = if (russian) "в ${chat.app}" else "on ${chat.app}"
-        return "$who $where: «${message.text.take(SPOKEN_MESSAGE_CHARS)}»"
-    }
-
     /** What is said when the phone rings. */
     fun incomingCall(caller: String, app: String?, russian: Boolean): String = when {
         app == null && russian -> "Звонит $caller"

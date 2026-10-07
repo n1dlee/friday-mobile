@@ -35,7 +35,7 @@ class PhoneActions(
         is CommandResult.OpenApp -> apps.openApp(c.packageHint, c.appName)
         is CommandResult.CloseApp -> apps.closeApp(c.packageHint, c.appName)
         is CommandResult.PhoneCall -> caller.call(c.target, c.via, russian)
-        is CommandResult.ReplyMessage -> messages.reply(c.to, c.body, russian)
+        is CommandResult.ReplyMessage -> messages.reply(c.to, c.body, russian, c.loose)
         is CommandResult.SendMessage -> messenger.message(c.target, c.body, c.via, russian)
         is CommandResult.PlayMedia -> mediaSearch.play(c.query, c.kind, c.appHint, russian)
         is CommandResult.SetAlarm -> setAlarm(c, russian)

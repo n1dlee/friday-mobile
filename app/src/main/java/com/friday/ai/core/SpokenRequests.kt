@@ -61,10 +61,31 @@ object ChatRequest {
         Regex("""^(?:что\s+(?:мне\s+)?(?:пишут|написали)|(?:есть|какие)\s+(?:новые\s+)?сообщени\p{L}*)[.?!]*$""", I),
         Regex("""^read\s+(?:me\s+)?(?:my\s+)?(?:new\s+|latest\s+)?(?:messages|texts)(?:\s+from\s+(.+?))?[.?!]*$""", I),
         Regex("""^what\s+did\s+(.+?)\s+(?:write|say|text)[.?!]*$""", I),
-        Regex("""^(?:any\s+new\s+messages)[.?!]*$""", I)
+        Regex("""^(?:any\s+new\s+messages)[.?!]*$""", I),
+        // "Есть непрочитанные сообщения?", "какие сообщения я не прочёл?", "кто мне писал?"
+        Regex("""^(?:есть\s+)?(?:(?:у\s+меня|ещё|еще)\s+)*(?:есть\s+)?непрочитанн\p{L}*(?:\s+сообщени\p{L}*)?[.?!]*$""", I),
+        Regex("""^(?:какие|чьи)\s+сообщени\p{L}*\s+я\s+(?:ещё\s+|еще\s+)?не\s+(?:(?:про)?чита|проч[её]л)\p{L}*[.?!]*$""", I),
+        Regex("""^кто\s+(?:мне\s+)?(?:писал|написал)\p{L}*[.?!]*$""", I),
+        Regex("""^(?:do\s+i\s+have\s+)?(?:any\s+)?unread\s+messages[.?!]*$|^who\s+(?:texted|wrote|messaged)\s+me[.?!]*$""", I)
     )
 
     private val replyToLast = Regex("""^(?:ответь|reply)\s*(?::\s*|,?\s+(?:что|чтобы|that|saying)\s+|,\s*)(.+)$""", I)
+
+    /** "Ответь хорошо", "ответь. Хорошо." — nothing between the verb and the message. */
+    private val replyBare = Regex("""^(?:ответь|reply)[\s.!—–-]+(.+)$""", I)
+    private val separator = Regex("""[:,]|\s(?:что|чтобы|that|saying)\s""", I)
+
+    /**
+     * A reply with no separator, tried after the mail patterns (which own
+     * "ответь Ивану буду в пять"); [com.friday.ai.core.messages.ReplyTarget]
+     * settles who it is for.
+     */
+    fun parseBareReply(text: String): CommandResult.ReplyMessage? =
+        looseReply(text)?.let { CommandResult.ReplyMessage(null, it, loose = it) }
+
+    /** Everything after "ответь" when no pause or "что" marks off a name; null otherwise. */
+    fun looseReply(text: String): String? =
+        replyBare.find(text.trim())?.groupValues?.get(1)?.trim()?.takeUnless { separator.containsMatchIn(it) }
 
     fun parse(text: String): CommandResult? {
         val t = text.trim()

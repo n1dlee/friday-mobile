@@ -64,9 +64,6 @@ class FridayNotificationListener : NotificationListenerService() {
         /** Settings: say who is calling (on unless turned off). */
         const val PREF_ANNOUNCE_CALLS = "announce_calls"
 
-        /** Settings: read new messages aloud as they arrive (off unless turned on). */
-        const val PREF_ANNOUNCE_MESSAGES = "announce_messages"
-
         /** A ringing call re-posts its notification; it is announced once. */
         private const val CALL_REPEAT_MS = 60_000L
 
@@ -154,14 +151,10 @@ class FridayNotificationListener : NotificationListenerService() {
     }
 
     private fun takeChat(sbn: StatusBarNotification) {
-        val (chat, fresh) = inbox.record(sbn, resolveAppName(sbn.packageName)) ?: return
-        val newest = fresh.lastOrNull() ?: return
-        // Groups chatter all day; only one-to-one chats are read out unasked.
-        if (chat.isGroup) return
-        scope.launch {
-            if (prefs.get(PREF_ANNOUNCE_MESSAGES) != "true" || !quietAllowed()) return@launch
-            announcer.say(Announcement(Conversations.announcement(chat, newest, russian()), listenAfter = true))
-        }
+        // Kept, never read out on arrival: three quick messages used to be
+        // three announcements. The owner asks ("есть непрочитанные?") when it
+        // suits them.
+        inbox.record(sbn, resolveAppName(sbn.packageName))
     }
 
     private fun incomingCaller(sbn: StatusBarNotification): String? {

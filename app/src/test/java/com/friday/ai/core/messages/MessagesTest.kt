@@ -61,7 +61,39 @@ class ConversationsTest {
     @Test
     fun `in a group the sender is named`() {
         val g = chat("Семья", 1, "Ужин в 7", group = true)
-        assertEquals("Аня в «Семья» в WhatsApp: «Ужин в 7»", Conversations.announcement(g, g.messages[0], true))
+        assertEquals("Семья в WhatsApp: «Аня: Ужин в 7».", Conversations.retell(listOf(g), true))
+    }
+
+    @Test
+    fun `who wrote is listed newest first, and the owner is asked whose first`() {
+        val firdavs = chat("Фирдавс", 300, "Привет")
+        assertEquals(
+            "Сообщения от: Фирдавс, Иван Петров и Мамуля. Чьё прочитать первым?",
+            Unread.whoWrote(listOf(mum, firdavs, ivan), true)
+        )
+        assertEquals("Ещё не прочитаны: Мамуля.", Unread.stillUnread(listOf(mum), true))
+    }
+
+    @Test
+    fun `a name said alone picks the chat`() {
+        val chats = listOf(mum, ivan, chat("Фирдавс", 300, "Привет"))
+        assertEquals("Фирдавс", Unread.picked("Фирдавс", chats)?.title)
+        assertEquals("Фирдавс", Unread.picked("давай сначала от Фирдавса", chats)?.title)
+        assertEquals(ivan, Unread.picked("Иван", chats))
+        assertNull(Unread.picked("ответь ему что я буду через 30 минут", chats))
+        assertNull(Unread.picked("какая погода", chats))
+    }
+
+    @Test
+    fun `a long chat is retold, a short one read`() {
+        val milana = chat("Милана", 1, "Ты где", "Ау", "Перезвони")
+        assertTrue(Unread.isLong(milana))
+        assertTrue(!Unread.isLong(ivan))
+        assertEquals(
+            "Милана в WhatsApp. Коротко: просит перезвонить.",
+            Unread.tell(milana, "Просит перезвонить.".lowercase(), true)
+        )
+        assertEquals("Иван Петров в WhatsApp: «Ок».", Unread.tell(ivan, null, true))
     }
 
     @Test
@@ -86,6 +118,22 @@ class ChatRoutingTest {
     }
 
     @Test
+    fun `asking what is unread`() {
+        listOf(
+            "Есть непрочитанные сообщения?", "У меня есть непрочитанные?", "Какие сообщения я не прочёл?",
+            "какие сообщения я не прочитал", "Кто мне писал?", "any unread messages?"
+        ).forEach { assertEquals(it, CommandResult.ReadMessages(null), router.route(it)) }
+    }
+
+    @Test
+    fun `answering him after the chat is read`() {
+        assertEquals(
+            CommandResult.ReplyMessage("ему", "я буду через 30 минут"),
+            router.route("Ответь ему что я буду через 30 минут.")
+        )
+    }
+
+    @Test
     fun `replies go to the chat, named or not`() {
         assertEquals(
             CommandResult.ReplyMessage("маме", "буду через 10 минут"),
@@ -93,6 +141,24 @@ class ChatRoutingTest {
         )
         assertEquals(CommandResult.ReplyMessage(null, "еду"), router.route("ответь, что еду"))
         assertEquals(CommandResult.ReplyMessage("ей", "еду"), router.route("ответь ей что еду"))
+    }
+
+    @Test
+    fun `a bare ответь is a reply with the rest as the message`() {
+        assertEquals(CommandResult.ReplyMessage(null, "хорошо", "хорошо"), router.route("ответь хорошо"))
+        assertEquals(CommandResult.ReplyMessage(null, "Хорошо.", "Хорошо."), router.route("Ответь. Хорошо."))
+        assertEquals(
+            CommandResult.ReplyMessage("хорошо", "спасибо", "хорошо спасибо"),
+            router.route("ответь хорошо спасибо")
+        )
+    }
+
+    @Test
+    fun `a separated reply is not loose`() {
+        assertEquals(
+            CommandResult.ReplyMessage("Ивану", "буду в пять"),
+            router.route("ответь Ивану: буду в пять")
+        )
     }
 
     @Test
@@ -114,10 +180,15 @@ class MessageAssistantTest {
     private var now = 0L
     private val assistant = MessageAssistant(mockk<Context>(), inbox, mail, clock = { now })
     private val mum = chat("Мамуля", 100, "Ты где?")
+    private val ivan = chat("Иван", 200, "Ок?")
+
+    init {
+        every { inbox.justRead(any()) } returns null
+    }
 
     @Test
     fun `a reply is read back and sent only on yes`() = runTest {
-        every { inbox.chats(any()) } returns listOf(mum)
+        every { inbox.answerable(any()) } returns listOf(mum)
         every { inbox.reply(any(), mum, "еду") } returns true
         assertEquals("Ответить «Мамуля» в WhatsApp: «еду»?", assistant.reply("маме", "еду", russian = true))
         verify(exactly = 0) { inbox.reply(any(), any(), any()) }
@@ -129,7 +200,7 @@ class MessageAssistantTest {
 
     @Test
     fun `no means nothing goes`() = runTest {
-        every { inbox.chats(any()) } returns listOf(mum)
+        every { inbox.answerable(any()) } returns listOf(mum)
         assistant.reply(null, "еду", true)
         assertEquals("Не отправляю.", assistant.answerPending("нет", true))
         verify(exactly = 0) { inbox.reply(any(), any(), any()) }
@@ -137,7 +208,7 @@ class MessageAssistantTest {
 
     @Test
     fun `a stale question is not answered by a later yes`() = runTest {
-        every { inbox.chats(any()) } returns listOf(mum)
+        every { inbox.answerable(any()) } returns listOf(mum)
         assistant.reply(null, "еду", true)
         now += 3 * 60 * 1000L
         assertNull(assistant.answerPending("да", true))
@@ -145,7 +216,7 @@ class MessageAssistantTest {
 
     @Test
     fun `someone with no recent chat gets an e-mail reply`() = runTest {
-        every { inbox.chats(any()) } returns emptyList()
+        every { inbox.answerable(any()) } returns emptyList()
         coEvery { mail.handle(any(), any()) } returns MailAssistant.Answer("Ответить Ивану письмом?")
         assistant.reply("Ивану", "буду в пять", true)
         coVerify { mail.handle(MailCommands.Request.Reply("Ивану", "буду в пять"), true) }
@@ -153,16 +224,183 @@ class MessageAssistantTest {
 
     @Test
     fun `an app without a reply field is said so`() = runTest {
-        every { inbox.chats(any()) } returns listOf(chat("Мамуля", 1, "?", canReply = false))
+        every { inbox.answerable(any()) } returns listOf(chat("Мамуля", 1, "?", canReply = false))
         assertTrue(assistant.reply("маме", "еду", true).contains("не даёт ответить"))
     }
 
     @Test
     fun `a closed notification cannot be replied from, and that is said`() = runTest {
-        every { inbox.chats(any()) } returns listOf(mum)
+        every { inbox.answerable(any()) } returns listOf(mum)
         every { inbox.reply(any(), any(), any()) } returns false
         assistant.reply(null, "еду", true)
         assertTrue(assistant.answerPending("да", true)!!.contains("уже закрыто"))
+    }
+
+    @Test
+    fun `right after a chat is read out, ответь sends at once and says what went`() = runTest {
+        every { inbox.answerable(any()) } returns listOf(mum, ivan)
+        every { inbox.justRead(any()) } returns mum
+        every { inbox.reply(any(), mum, "хорошо") } returns true
+        assertEquals("Отправила «Мамуля»: «хорошо».", assistant.reply(null, "хорошо", true, loose = "хорошо"))
+        verify { inbox.reply(any(), mum, "хорошо") }
+        assertNull(assistant.answerPending("да", true))
+    }
+
+    @Test
+    fun `with nothing read just now, the reply is still read back`() = runTest {
+        every { inbox.answerable(any()) } returns listOf(mum)
+        assertEquals("Ответить «Мамуля» в WhatsApp: «хорошо»?", assistant.reply(null, "хорошо", true, "хорошо"))
+        verify(exactly = 0) { inbox.reply(any(), any(), any()) }
+    }
+
+    @Test
+    fun `a first word that is no name is part of the answer, not an e-mail`() = runTest {
+        every { inbox.answerable(any()) } returns listOf(mum)
+        every { inbox.justRead(any()) } returns mum
+        every { inbox.reply(any(), mum, "хорошо спасибо") } returns true
+        assistant.reply("хорошо", "спасибо", true, loose = "хорошо спасибо")
+        verify { inbox.reply(any(), mum, "хорошо спасибо") }
+        coVerify(exactly = 0) { mail.handle(any(), any()) }
+    }
+
+    @Test
+    fun `a gone notification after a direct reply is said`() = runTest {
+        every { inbox.answerable(any()) } returns listOf(mum)
+        every { inbox.justRead(any()) } returns mum
+        every { inbox.reply(any(), any(), any()) } returns false
+        assertTrue(assistant.reply(null, "хорошо", true, "хорошо").contains("уже закрыто"))
+    }
+
+    @Test
+    fun `several chats - who wrote is asked first, nothing is read yet`() = runTest {
+        every { inbox.chats(any()) } returns listOf(mum, ivan)
+        assertEquals("Сообщения от: Иван и Мамуля. Чьё прочитать первым?", assistant.read(null, true))
+        verify(exactly = 0) { inbox.markRead(any(), any()) }
+    }
+
+    @Test
+    fun `a name in answer reads that chat, names the rest, and keeps listening`() = runTest {
+        var unread = listOf(mum, ivan)
+        every { inbox.chats(any()) } answers { unread }
+        every { inbox.markRead(ivan.key, any()) } answers { unread = listOf(mum) }
+        assistant.read(null, true)
+        assertEquals("Иван в WhatsApp: «Ок?». Ещё не прочитаны: Мамуля.", assistant.answerPending("Иван", true))
+        assertTrue(assistant.takeFollowUp())
+        assertTrue(!assistant.takeFollowUp())
+    }
+
+    @Test
+    fun `yes reads the newest, no leaves them`() = runTest {
+        every { inbox.chats(any()) } returns listOf(mum, ivan)
+        assistant.read(null, true)
+        assertEquals("Хорошо, позже.", assistant.answerPending("нет", true))
+        assertNull(assistant.answerPending("Иван", true))
+        assistant.read(null, true)
+        assertTrue(assistant.answerPending("да", true)!!.startsWith("Иван в WhatsApp"))
+    }
+
+    @Test
+    fun `a single chat is read at once`() = runTest {
+        every { inbox.chats(any()) } returnsMany listOf(listOf(mum), emptyList())
+        assertEquals("Мамуля в WhatsApp: «Ты где?».", assistant.read(null, true))
+        verify { inbox.markRead(mum.key, any()) }
+    }
+
+    @Test
+    fun `a long chat is summarised, and read word for word if that fails`() = runTest {
+        val milana = chat("Милана", 300, "Ты где", "Ау", "Перезвони")
+        every { inbox.chats(any()) } returnsMany listOf(listOf(milana), emptyList(), listOf(milana), emptyList())
+        val summarising = MessageAssistant(mockk(), inbox, mail, summarize = { _, _ -> "Просит перезвонить" })
+        assertEquals("Милана в WhatsApp. Коротко: Просит перезвонить.", summarising.read(null, true))
+        assertTrue(assistant.read(null, true).startsWith("Милана в WhatsApp: «Ты где» «Ау» «Перезвони»"))
+    }
+
+    @Test
+    fun `nothing unread is said so`() = runTest {
+        every { inbox.chats(any()) } returns emptyList()
+        assertEquals("Непрочитанных сообщений нет.", assistant.read(null, true))
+    }
+}
+
+class PromoFilterTest {
+
+    private fun spam(title: String, vararg texts: String, contacts: Set<String> = emptySet(), group: Boolean = false) =
+        PromoFilter.isPromotional(chat(title, 1, *texts, group = group), contacts)
+
+    @Test
+    fun `people get through`() {
+        assertTrue(!spam("Милана", "Ты где?"))
+        assertTrue(!spam("Фирдавс", "Скинь фото"))
+        assertTrue(!spam("+998 90 123 45 67", "Это Азиз, новый номер"))
+        assertTrue(!spam("Аня", "В Зару скидки"))
+    }
+
+    @Test
+    fun `companies do not`() {
+        assertTrue(spam("900", "Ваш баланс 120 руб"))
+        assertTrue(spam("BEELINE", "Подключите тариф"))
+        assertTrue(spam("Uzum Bank", "Платёж выполнен"))
+        assertTrue(spam("Korzinka", "Скидка 30% на всё! Подробнее https://example.com"))
+        assertTrue(spam("Сервис", "Код подтверждения: 4821. Никому не сообщайте"))
+    }
+
+    @Test
+    fun `the phone book wins`() {
+        assertTrue(!spam("ANVAR", "Привет", contacts = setOf("anvar")))
+        assertTrue(!spam("Семья", "Скидка 30% https://x.y", group = true))
+    }
+}
+
+class ReplyTargetTest {
+
+    private val mum = chat("Мама", 100, "Ты где?")
+    private val ivan = chat("Иван Петров", 200, "Ок?")
+    private val known = listOf(mum, ivan)
+
+    private fun pick(who: String?, text: String, loose: String?, justRead: Conversation?) =
+        ReplyTarget.choose(who, text, loose, known, justRead)
+
+    @Test
+    fun `the chat just read is answered at once`() {
+        assertEquals(ReplyTarget.Choice(mum, "хорошо", sendNow = true), pick(null, "хорошо", "хорошо", mum))
+    }
+
+    @Test
+    fun `nothing read just now - the newest chat, asked first`() {
+        assertEquals(ReplyTarget.Choice(ivan, "хорошо", sendNow = false), pick(null, "хорошо", "хорошо", null))
+    }
+
+    @Test
+    fun `a named chat other than the one just read is asked first`() {
+        assertEquals(ReplyTarget.Choice(ivan, "буду", sendNow = false), pick("Ивану", "буду", null, mum))
+        assertEquals(ReplyTarget.Choice(mum, "еду", sendNow = true), pick("маме", "еду", "маме еду", mum))
+    }
+
+    @Test
+    fun `a lowercase first word that names no chat belongs to the message`() {
+        assertEquals(
+            ReplyTarget.Choice(mum, "хорошо спасибо", sendNow = true),
+            pick("хорошо", "спасибо", "хорошо спасибо", mum)
+        )
+        assertTrue(!ReplyTarget.isMailFor("хорошо", "хорошо спасибо"))
+    }
+
+    @Test
+    fun `a capitalised unknown name is still an e-mail reply`() {
+        assertNull(pick("Олегу", "буду в пять", "Олегу буду в пять", mum))
+        assertTrue(ReplyTarget.isMailFor("Олегу", "Олегу буду в пять"))
+        assertTrue(ReplyTarget.isMailFor("Олегу", null))
+    }
+
+    @Test
+    fun `a bare name alone leaves nothing to send`() {
+        assertEquals("", pick(null, "маме", "маме", ivan)?.text)
+    }
+
+    @Test
+    fun `a dictated full stop and a leading что are not sent`() {
+        assertEquals("еду", ReplyTarget.clean("что еду."))
+        assertEquals("Ок, через 5 минут", ReplyTarget.clean("Ок, через 5 минут."))
     }
 }
 

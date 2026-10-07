@@ -95,6 +95,9 @@ class CommandExecutor(
             ?: mail.answerPending(text, russian)
             ?: messages?.answerPending(text, russian)
 
+    /** After an answer to [answerPending]: keep listening, the owner has more to say. */
+    fun awaitsMore(): Boolean = messages?.takeFollowUp() == true
+
     /**
      * Runs [command]. Never throws for an ordinary failure — it becomes a
      * reply the user hears or reads, rather than an exception that ends the

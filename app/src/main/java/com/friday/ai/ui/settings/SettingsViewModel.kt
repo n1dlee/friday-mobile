@@ -247,8 +247,6 @@ class SettingsViewModel(
     private val _announceCalls = MutableStateFlow(true)
     val announceCalls: StateFlow<Boolean> = _announceCalls.asStateFlow()
 
-    private val _announceMessages = MutableStateFlow(false)
-    val announceMessages: StateFlow<Boolean> = _announceMessages.asStateFlow()
 
     private val _mapsProvider = MutableStateFlow("auto")
     val mapsProvider: StateFlow<String> = _mapsProvider.asStateFlow()
@@ -276,7 +274,6 @@ class SettingsViewModel(
             _lazuriStatus.value = if (memory.isLazuriConfigured()) LazuriStatus.CONNECTED else LazuriStatus.DISCONNECTED
             _mapsProvider.value = prefDao.get("maps_provider") ?: "auto"
             _announceCalls.value = prefDao.get(FridayNotificationListener.PREF_ANNOUNCE_CALLS) != "false"
-            _announceMessages.value = prefDao.get(FridayNotificationListener.PREF_ANNOUNCE_MESSAGES) == "true"
         }
     }
 
@@ -284,13 +281,6 @@ class SettingsViewModel(
         _announceCalls.value = on
         viewModelScope.launch {
             prefDao.set(UserPreferenceEntity(FridayNotificationListener.PREF_ANNOUNCE_CALLS, on.toString()))
-        }
-    }
-
-    fun onAnnounceMessagesChange(on: Boolean) {
-        _announceMessages.value = on
-        viewModelScope.launch {
-            prefDao.set(UserPreferenceEntity(FridayNotificationListener.PREF_ANNOUNCE_MESSAGES, on.toString()))
         }
     }
 

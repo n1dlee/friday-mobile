@@ -64,7 +64,7 @@ About 40 everyday commands run straight on the phone in milliseconds. Everything
 "Text mum" picks SMS, WhatsApp or Telegram from her number's country, yours, and the apps she uses. "Call mum" abroad becomes a WhatsApp call. Every choice comes with the reason.
 
 ### 💬 Reads and answers your chats
-Announces callers, reads WhatsApp/Telegram/SMS aloud, and replies through the notification itself after you confirm, without opening the app.
+Announces callers and quietly collects WhatsApp/Telegram/SMS, skipping shops, banks and codes. Ask "any unread messages?" and Friday names who wrote and asks whose first; long chats are summarised. "Reply: sure" answers the chat just read, through the notification itself, without opening the app.
 
 ### 🌐 Knows what's current
 Web search via Groq's browser tool for news, prices and scores. Real weather from [Open-Meteo](https://open-meteo.com). The calculator handles arithmetic, not the model's head.

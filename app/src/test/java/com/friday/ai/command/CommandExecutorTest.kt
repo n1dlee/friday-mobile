@@ -105,7 +105,7 @@ class PlannerActionsTest {
     fun `an event lands at the parsed local time in the phone's zone`() = runTest {
         every { apps.createCalendarEvent(any(), any(), any(), any()) } returns "ok"
         val text = "завтра в 15:00"
-        val expected = DateTimeParser.parse(text)!!.instant.atZone(zone).toInstant().toEpochMilli()
+        val expected = DateTimeParser.parse(text, zone)!!.instant.atZone(zone).toInstant().toEpochMilli()
 
         planner.run(CommandResult.CreateEvent("врач", text), russian = true)
 
