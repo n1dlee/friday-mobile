@@ -1,8 +1,10 @@
 package com.friday.ai.data.local.entity
 
 import androidx.room.Entity
+import kotlinx.serialization.Serializable
 import androidx.room.PrimaryKey
 
+@Serializable
 @Entity(tableName = "memories")
 data class MemoryEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,

@@ -1,6 +1,7 @@
 package com.friday.ai.data.local.entity
 
 import androidx.room.Entity
+import kotlinx.serialization.Serializable
 import androidx.room.PrimaryKey
 
 /**
@@ -12,6 +13,7 @@ import androidx.room.PrimaryKey
  * [snoozedUntil] exists so "потом" actually means later rather than never,
  * and [done] so a dismissed errand stops nagging entirely.
  */
+@Serializable
 @Entity(tableName = "errands")
 data class ErrandEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,

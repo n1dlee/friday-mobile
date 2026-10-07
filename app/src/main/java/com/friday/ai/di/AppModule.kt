@@ -59,6 +59,14 @@ val appModule = module {
     single { get<FridayDatabase>().notificationDao() }
     single { get<FridayDatabase>().sessionSummaryDao() }
     single { get<FridayDatabase>().errandDao() }
+    // Moving to another phone: everything in one passphrase-encrypted file.
+    single {
+        com.friday.ai.data.backup.SettingsTransfer(
+            get<FridayDatabase>().backupDao(),
+            get<com.friday.ai.data.local.secure.SecurePreferenceDao>(),
+            appVersion = com.friday.ai.BuildConfig.VERSION_NAME
+        )
+    }
 
     // Network
     single { GroqApiService.create() }
@@ -164,6 +172,7 @@ val appModule = module {
         )
     }
     viewModel { com.friday.ai.ui.diagnostics.DiagnosticsViewModel(get()) }
+    viewModel { com.friday.ai.ui.settings.TransferViewModel(androidContext(), get()) }
     viewModel {
         LazuriDashboardViewModel(
             memoryDao = get(),

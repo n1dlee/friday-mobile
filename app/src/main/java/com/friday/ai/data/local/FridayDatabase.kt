@@ -2,6 +2,7 @@ package com.friday.ai.data.local
 
 import androidx.room.Database
 import androidx.room.RoomDatabase
+import com.friday.ai.data.local.dao.BackupDao
 import com.friday.ai.data.local.dao.ChatMessageDao
 import com.friday.ai.data.local.dao.InteractionDao
 import com.friday.ai.data.local.dao.ErrandDao
@@ -39,4 +40,5 @@ abstract class FridayDatabase : RoomDatabase() {
     abstract fun notificationDao(): NotificationDao
     abstract fun sessionSummaryDao(): SessionSummaryDao
     abstract fun errandDao(): ErrandDao
+    abstract fun backupDao(): BackupDao
 }
