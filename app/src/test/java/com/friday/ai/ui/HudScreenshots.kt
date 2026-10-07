@@ -177,7 +177,7 @@ class HudScreenshots {
             state = state,
             inputText = input,
             listState = rememberLazyListState(),
-            onMenu = {}, onSettings = {}, onModes = {}, onMode = {}, onInput = {}, onSend = {},
+            onMenu = {}, onSettings = {}, onModes = {}, onNotebook = {}, onMode = {}, onInput = {}, onSend = {},
             onMic = {}, onSuggestion = {}, onDismissError = {}
         )
     }

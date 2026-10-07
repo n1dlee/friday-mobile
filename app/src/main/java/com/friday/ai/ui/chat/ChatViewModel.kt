@@ -188,6 +188,28 @@ class ChatViewModel(
         streamAssistantResponse { analyzeContent.analyzeImage(imageBase64) }
     }
 
+    /**
+     * A page from the notebook: the question (or a note that there is none)
+     * goes into the conversation, the page to the vision model.
+     */
+    fun onNotebook(page: com.friday.ai.ui.notebook.NotebookInbox.Page) {
+        viewModelScope.launch {
+            persist("[Блокнот] " + page.question.ifBlank { "что здесь написано?" }, MessageRole.USER)
+            streamAssistantResponse { analyzeContent.analyzeImage(page.imageBase64, notebookPrompt(page.question)) }
+        }
+    }
+
+    private fun notebookPrompt(question: String): String {
+        val task = if (question.isBlank()) {
+            "If it asks something or is a problem, answer or solve it; otherwise say what it says. "
+        } else {
+            "Then do what the user asks about it: \"$question\". "
+        }
+        return "The image is a page the user wrote or drew by hand: text, a formula, a sum or a sketch. " +
+            "Read it carefully first. " + task +
+            "Show the working for maths. Answer in the language of the writing or the question."
+    }
+
     fun onFileSelected(fileContent: FileAnalyzer.FileContent) {
         if (fileContent.isImage && fileContent.base64Content != null) {
             streamAssistantResponse {
