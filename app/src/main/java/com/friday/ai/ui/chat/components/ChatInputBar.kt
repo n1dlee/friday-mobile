@@ -25,6 +25,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.friday.ai.ui.theme.ArcCyan
@@ -54,7 +60,15 @@ fun ChatInputBar(
         OutlinedTextField(
             value = text,
             onValueChange = onTextChange,
-            modifier = Modifier.weight(1f).heightIn(min = 52.dp),
+            modifier = Modifier
+                .weight(1f)
+                .heightIn(min = 52.dp)
+                // A physical keyboard (DeX, a Bluetooth one): Enter sends, Shift+Enter starts a new line.
+                .onPreviewKeyEvent { e ->
+                    val send = e.type == KeyEventType.KeyDown && e.key == Key.Enter && !e.isShiftPressed
+                    if (send && text.isNotBlank() && !isLoading) onSend()
+                    send
+                },
             placeholder = {
                 Text(
                     if (isListening) "Слушаю…" else "Команда или вопрос",

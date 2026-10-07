@@ -130,6 +130,10 @@ class LinkWatcher(
             scope.launch {
                 delay(WIFI_SETTLE_MS)
                 links.wifi()?.let { name ->
+                    // Android reports the current network as soon as the watcher starts:
+                    // already being on it is not arriving, or every restart at home would
+                    // run the "home" mode again.
+                    if (name == ssid) return@let
                     ssid = name
                     onChangeOnce(Trigger.WIFI, name, true)
                 }
