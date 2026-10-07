@@ -73,13 +73,13 @@ class ModePhrasesTest {
 
     @Test
     fun `names match across the case russian puts them in`() {
-        assertTrue(ModePhrases.same("грусти", "грусть"))
-        assertTrue(ModePhrases.same("отдыха", "отдых"))
-        assertTrue(ModePhrases.same("грусти пожалуйста", "грусти"))
-        assertTrue(ModePhrases.same("утренний", "утреннего"))
-        assertFalse(ModePhrases.same("грустный", "отдых"))
-        assertFalse(ModePhrases.same("работы", "отдыха"))
-        assertFalse("too many extra words", ModePhrases.same("грусти и ещё что-то", "грусти"))
+        assertTrue(ModeNames.same("грусти", "грусть"))
+        assertTrue(ModeNames.same("отдыха", "отдых"))
+        assertTrue(ModeNames.same("грусти пожалуйста", "грусти"))
+        assertTrue(ModeNames.same("утренний", "утреннего"))
+        assertFalse(ModeNames.same("грустный", "отдых"))
+        assertFalse(ModeNames.same("работы", "отдыха"))
+        assertFalse("too many extra words", ModeNames.same("грусти и ещё что-то", "грусти"))
     }
 }
 
@@ -321,6 +321,31 @@ class ModeEngineTest {
         sayRouted("режим отдыха")
         clock += 10 * 60 * 1000
         assertNull(engine.route("нет, включи lofi"))
+    }
+
+    @Test
+    fun `adding to a mode by voice appends and reads back`() = runTest {
+        createRest()
+        compiled["будильник на 8"] = ModeCompiler.Result.Steps(
+            listOf(envelope("set_alarm", """{"hour":8,"minute":0}""")), emptyList()
+        )
+        val reply = say("добавь в режим отдыха будильник на 8")!!
+        assertTrue(reply, reply.startsWith("Добавила в режим отдыха: будильник на 8:00."))
+        assertEquals(4, store.all().single().steps.size)
+    }
+
+    @Test
+    fun `removing a step by what it sounds like`() = runTest {
+        createRest()
+        val reply = say("убери яркость из режима отдыха")!!
+        assertTrue(reply, reply.startsWith("Убрала из режима отдыха: яркость 5 %."))
+        assertEquals(listOf("ringer", "dnd"), store.all().single().steps.map { (it.args["target"] as kotlinx.serialization.json.JsonPrimitive).content })
+        assertTrue(say("убери кофеварку из режима отдыха")!!.startsWith("В режиме отдыха такого нет."))
+    }
+
+    @Test
+    fun `adding to a mode that doesn't exist is left to the rest of Friday`() = runTest {
+        assertNull(engine.route("добавь в режим полета что-нибудь"))
     }
 
     @Test

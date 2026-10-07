@@ -57,8 +57,8 @@ class ModeStore(private val dao: ModeDao, private val clock: () -> Long = System
         dao.observeAll().map { rows -> rows.mapNotNull(::parse) }
 
     /** The mode [spoken] names, by name or by an alias it was later called. */
-    fun find(spoken: String): Mode? = cache.firstOrNull { m ->
-        ModePhrases.same(spoken, m.name) || m.aliases.any { ModePhrases.same(spoken, it) }
+    fun find(spoken: String, spare: Int = 1): Mode? = cache.firstOrNull { m ->
+        ModeNames.same(spoken, m.name, spare) || m.aliases.any { ModeNames.same(spoken, it, spare) }
     }
 
     fun byId(id: String): Mode? = cache.firstOrNull { it.id == id }

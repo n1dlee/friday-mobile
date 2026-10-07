@@ -35,6 +35,10 @@ class ModeEngine(
     private companion object {
         /** "Отмена" this soon after creating a mode removes it. */
         const val UNDO_WINDOW_MS = 2 * 60 * 1000L
+        const val MAX_NAME_WORDS = 4
+
+        /** At least half of "убери …"'s words must be in a step for it to be that step. */
+        const val MIN_STEP_MATCH = 0.5
     }
 
     @Volatile
@@ -71,6 +75,8 @@ class ModeEngine(
             is CommandResult.Mode.Run -> request.takeIf { store.find(it.name) != null }
             is CommandResult.Mode.Exit -> request.takeIf { store.find(it.name) != null }
             is CommandResult.Mode.Describe -> request.takeIf { store.find(it.name) != null }
+            is CommandResult.Mode.AddTo -> request.takeIf { split(it.rest) != null }
+            is CommandResult.Mode.RemoveFrom -> request.takeIf { store.find(it.name) != null }
             else -> request
         }
     }
@@ -125,6 +131,9 @@ class ModeEngine(
             is CommandResult.Mode.Delete -> store.find(request.name)?.let { delete(it, say) } ?: missing(request.name, say)
             is CommandResult.Mode.CancelCreated -> cancel(request.id, say)
             is CommandResult.Mode.Correct -> correct(request, say, router, runner)
+            is CommandResult.Mode.AddTo -> add(request.rest, say)
+            is CommandResult.Mode.RemoveFrom -> store.find(request.name)?.let { remove(it, request.what, say) }
+                ?: missing(request.name, say)
             CommandResult.Mode.ListAll -> list(say)
         }
     }
@@ -216,6 +225,52 @@ class ModeEngine(
             say(" Добавить это в режим ${mode.name}?", " Add this to ${mode.name} mode?")
         }
         return reply.trim().let { if (it.last() in ".!?…") it else "$it." } + question
+    }
+
+    /** "грусти тёплый свет" → (режим грусти, "тёплый свет"): the longest saved name at the start. */
+    private fun split(rest: String): Pair<Mode, String>? {
+        val words = rest.trim().split(' ').filter { it.isNotBlank() }
+        for (k in minOf(MAX_NAME_WORDS, words.size - 1) downTo 1) {
+            // Exact: with a spare word allowed, "отдыха будильник" would pass for "отдыха".
+            val mode = store.find(words.take(k).joinToString(" "), spare = 0) ?: continue
+            return mode to words.drop(k).joinToString(" ")
+        }
+        return null
+    }
+
+    private suspend fun add(rest: String, say: Say): String {
+        val (mode, what) = split(rest) ?: return say("Не поняла, в какой режим добавить.", "Which mode should I add it to?")
+        return when (val compiled = compile(mode.name, what)) {
+            is ModeCompiler.Result.Failed -> say(
+                "Не поняла, что добавить в режим ${mode.name}.", "I couldn't work out what to add to ${mode.name} mode."
+            )
+            is ModeCompiler.Result.Steps -> {
+                val steps = mode.steps + compiled.steps
+                store.put(mode.copy(steps = steps, description = mode.description + "; " + what))
+                say(
+                    "Добавила в режим ${mode.name}: ${ModeSteps.summary(compiled.steps, say.russian)}. Теперь в нём: ${ModeSteps.summary(steps, say.russian)}.",
+                    "Added to ${mode.name} mode: ${ModeSteps.summary(compiled.steps, say.russian)}. Now it does: ${ModeSteps.summary(steps, say.russian)}."
+                )
+            }
+        }
+    }
+
+    /** The step [what] sounds most like, by its words; removed if it's a clear match. */
+    private suspend fun remove(mode: Mode, what: String, say: Say): String {
+        val scored = mode.steps.mapIndexed { i, step ->
+            i to ModeNames.overlap(what, ModeSteps.describe(step, true) + " " + ModeSteps.describe(step, false) + " " + step.toJson())
+        }
+        val best = scored.maxByOrNull { it.second }?.takeIf { it.second >= MIN_STEP_MATCH }
+            ?: return say(
+                "В режиме ${mode.name} такого нет. В нём: ${ModeSteps.summary(mode.steps, say.russian)}.",
+                "${mode.name} mode has no such step. It does: ${ModeSteps.summary(mode.steps, say.russian)}."
+            )
+        val steps = mode.steps.filterIndexed { i, _ -> i != best.first }
+        store.put(mode.copy(steps = steps))
+        val removed = ModeSteps.describe(mode.steps[best.first], say.russian)
+        val left = if (steps.isEmpty()) say("В режиме больше ничего нет.", "Nothing is left in it.")
+        else say("Осталось: ${ModeSteps.summary(steps, say.russian)}.", "Left: ${ModeSteps.summary(steps, say.russian)}.")
+        return say("Убрала из режима ${mode.name}: $removed. ", "Removed from ${mode.name} mode: $removed. ") + left
     }
 
     private suspend fun exit(mode: Mode, say: Say, runner: suspend (CommandResult) -> String): String {

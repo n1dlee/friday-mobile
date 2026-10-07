@@ -38,6 +38,10 @@ sealed interface CommandResult {
          * then Friday offers to keep it in the mode.
          */
         data class Correct(val id: String, val instead: String) : Mode
+        /** "Добавь в режим грусти тёплый свет": [rest] is the name followed by what to add. */
+        data class AddTo(val rest: String) : Mode
+        /** "Убери будильник из режима отдыха". */
+        data class RemoveFrom(val what: String, val name: String) : Mode
     }
 
     data class OpenApp(val appName: String, val packageHint: String?) : Phone

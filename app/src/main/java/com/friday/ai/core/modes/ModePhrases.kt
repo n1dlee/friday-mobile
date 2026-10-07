@@ -1,6 +1,5 @@
 package com.friday.ai.core.modes
 
-import com.friday.ai.core.SpokenText
 import com.friday.ai.domain.model.CommandResult
 
 /**
@@ -12,15 +11,11 @@ import com.friday.ai.domain.model.CommandResult
  * грусти", "включи режим грусти" run it; "выключи режим грусти", "выйди из
  * режима грусти" undo it.
  *
- * Names are compared by word stems, so the case Russian puts them in
- * doesn't matter: "режим отдыха" finds a mode named "отдых", "грустный"
- * does not find "грусти" (different word), "грусть" does.
+ * Names are compared by [ModeNames].
  */
 object ModePhrases {
 
     private const val MAX_NAME_WORDS = 4
-    private const val MIN_STEM = 3
-    private const val ENDING = 2
 
     /** The description's group in [createEn]: after the two alternative name groups. */
     private const val EN_DESCRIPTION = 3
@@ -63,6 +58,15 @@ object ModePhrases {
         Regex("^(?:удали|сотри|забудь|delete|remove|forget)\\s+(?:режим\\p{L}*|(?:the\\s+)?mode)\\s+(.+)$"),
         Regex("^(?:delete|remove|forget)\\s+(?:the\\s+)?(.+?)\\s+mode$")
     )
+    private val addTo = listOf(
+        Regex("^(?:добавь|допиши|включи)\\s+в\\s+режим\\p{L}*\\s+(.+)$"),
+        Regex("^add\\s+to\\s+(?:the\\s+)?mode\\s+(.+)$")
+    )
+    private val removeFrom = listOf(
+        Regex("^(?:убери|удали|выкинь|исключи)\\s+(.+?)\\s+из\\s+режим\\p{L}*\\s+(.+)$"),
+        Regex("^(?:remove|take)\\s+(.+?)\\s+(?:out\\s+)?(?:of|from)\\s+(?:the\\s+)?(.+?)\\s+mode$")
+    )
+
     private val list = Regex(
         "^(?:какие\\s+(?:у\\s+меня\\s+)?(?:есть\\s+)?режимы|мои\\s+режимы|список\\s+режимов|" +
             "(?:list|show)\\s+(?:my\\s+)?modes|" +
@@ -73,8 +77,6 @@ object ModePhrases {
         Regex("^(?:(?:start|activate|turn on|enable|run|switch to)\\s+)?(?:the\\s+)?(.+?)\\s+mode$")
     )
 
-    private val stopWords = setOf("мой", "моя", "мое", "мои", "мне", "the", "my", "пожалуйста", "please")
-
     /**
      * The mode request in [text], or null if it isn't one. A run or exit with
      * a name is only a candidate: "включи режим полета" is a system setting,
@@ -83,12 +85,20 @@ object ModePhrases {
     fun parse(text: String): CommandResult.Mode? {
         val t = clean(text)
         return parseCreate(t)
+            ?: parseEdit(t)
             ?: CommandResult.Mode.ListAll.takeIf { list.containsMatchIn(t) }
             ?: firstName(t, describe)?.let { CommandResult.Mode.Describe(it) }
             ?: firstName(t, delete)?.let { CommandResult.Mode.Delete(it) }
             ?: firstName(t, exit)?.let { CommandResult.Mode.Exit(it) }
             ?: firstName(t, run)?.let { CommandResult.Mode.Run(it) }
     }
+
+    /** "Добавь в режим …", "убери … из режима …". */
+    private fun parseEdit(t: String): CommandResult.Mode? =
+        addTo.firstNotNullOfOrNull { it.find(t) }?.let { CommandResult.Mode.AddTo(it.groupValues[1]) }
+            ?: removeFrom.firstNotNullOfOrNull { it.find(t) }?.let { m ->
+                name(m.groupValues[2])?.let { CommandResult.Mode.RemoveFrom(m.groupValues[1], it) }
+            }
 
     private fun parseCreate(t: String): CommandResult.Mode.Create? =
         create.find(t)?.let { m -> split(m.groupValues[1]) }
@@ -126,27 +136,4 @@ object ModePhrases {
 
     private fun clean(text: String): String =
         text.trim().lowercase().replace('ё', 'е').replace(wake, "").trim().trimEnd('.', '!', '?', ' ')
-
-    /**
-     * Whether [spoken] names [name] (or one of its aliases): every word of the
-     * name matches a spoken word by stem, in order, with at most one spoken
-     * word to spare ("режим грусти пожалуйста").
-     */
-    fun same(spoken: String, name: String): Boolean {
-        val said = words(spoken)
-        val wanted = words(name)
-        if (wanted.isEmpty() || said.size - wanted.size !in 0..1) return false
-        var i = 0
-        for (w in said) if (i < wanted.size && sameStem(w, wanted[i])) i++
-        return i == wanted.size
-    }
-
-    private fun words(s: String) = SpokenText.normalise(s).split(' ').filter { it.isNotBlank() && it !in stopWords }
-
-    /** "грусти"/"грусть", "отдыха"/"отдых": the same word in another case. */
-    private fun sameStem(a: String, b: String): Boolean {
-        if (a == b) return true
-        val common = a.zip(b).takeWhile { (x, y) -> x == y }.size
-        return common >= maxOf(MIN_STEM, minOf(a.length, b.length) - ENDING)
-    }
 }
