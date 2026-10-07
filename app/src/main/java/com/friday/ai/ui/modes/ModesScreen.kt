@@ -15,8 +15,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.BatteryChargingFull
+import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -35,6 +38,9 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.friday.ai.core.modes.Mode
+import com.friday.ai.core.modes.ModeEvent
+import com.friday.ai.core.modes.Trigger
+import com.friday.ai.core.modes.describeEvent
 import com.friday.ai.core.modes.ModeSteps
 import com.friday.ai.core.modes.Schedule
 import com.friday.ai.core.modes.ScheduleMath
@@ -62,9 +68,11 @@ fun ModesScreen(onNavigateBack: () -> Unit, viewModel: ModesViewModel = koinView
     val status by viewModel.status.collectAsStateWithLifecycle()
     val busy by viewModel.busy.collectAsStateWithLifecycle()
     val schedules by viewModel.schedules.collectAsStateWithLifecycle()
+    val events by viewModel.events.collectAsStateWithLifecycle()
     ModesLayout(
         modes, status, busy, onNavigateBack, viewModel::run, viewModel::stop, viewModel::delete,
-        schedules = schedules, onUnschedule = viewModel::unschedule
+        schedules = schedules, onUnschedule = viewModel::unschedule,
+        events = events, onRemoveEvent = viewModel::removeEvent
     )
 }
 
@@ -79,7 +87,9 @@ internal fun ModesLayout(
     onStop: (Mode) -> Unit,
     onDelete: (Mode) -> Unit,
     schedules: Map<String, List<Schedule>> = emptyMap(),
-    onUnschedule: (Schedule) -> Unit = {}
+    onUnschedule: (Schedule) -> Unit = {},
+    events: Map<String, List<ModeEvent>> = emptyMap(),
+    onRemoveEvent: (ModeEvent) -> Unit = {}
 ) {
     var deleting by remember { mutableStateOf<Mode?>(null) }
     HudBackground {
@@ -108,7 +118,8 @@ internal fun ModesLayout(
                     ModePanel(
                         mode, index = modes.orEmpty().indexOf(mode) + 1, busy = busy == mode.id,
                         onRun = { onRun(mode) }, onStop = { onStop(mode) }, onDelete = { deleting = mode },
-                        schedules = schedules[mode.id].orEmpty(), onUnschedule = onUnschedule
+                        schedules = schedules[mode.id].orEmpty(), onUnschedule = onUnschedule,
+                        events = events[mode.id].orEmpty(), onRemoveEvent = onRemoveEvent
                     )
                 }
                 if (!modes.isNullOrEmpty()) {
@@ -143,7 +154,9 @@ private fun ModePanel(
     onStop: () -> Unit,
     onDelete: () -> Unit,
     schedules: List<Schedule> = emptyList(),
-    onUnschedule: (Schedule) -> Unit = {}
+    onUnschedule: (Schedule) -> Unit = {},
+    events: List<ModeEvent> = emptyList(),
+    onRemoveEvent: (ModeEvent) -> Unit = {}
 ) {
     HudPanel("Режим ${mode.name}", index = index, accent = if (mode.active) ArcCyan else ArcCyanDim) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -172,10 +185,7 @@ private fun ModePanel(
                 )
             }
         }
-        if (schedules.isNotEmpty()) {
-            // One group: the panel's spacing between rows would leave gaps around the 48dp remove buttons.
-            Column { schedules.sortedBy { it.exit }.forEach { s -> ScheduleRow(s, onRemove = { onUnschedule(s) }) } }
-        }
+        if (schedules.isNotEmpty() || events.isNotEmpty()) Triggers(schedules, onUnschedule, events, onRemoveEvent)
         HudReadout("Запусков", mode.runCount.toString())
         if (busy) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -189,19 +199,48 @@ private fun ModePanel(
     }
 }
 
+/** What starts the mode by itself; one group, so the panel's spacing doesn't open gaps around the 48dp buttons. */
 @Composable
-private fun ScheduleRow(s: Schedule, onRemove: () -> Unit) {
+private fun Triggers(
+    schedules: List<Schedule>,
+    onUnschedule: (Schedule) -> Unit,
+    events: List<ModeEvent>,
+    onRemoveEvent: (ModeEvent) -> Unit
+) {
+    Column {
+        schedules.sortedBy { it.exit }.forEach { s ->
+            TriggerRow(
+                Icons.Filled.Schedule,
+                verb(s.exit) + ScheduleMath.describe(s.days, s.time, russian = true),
+                onRemove = { onUnschedule(s) }
+            )
+        }
+        events.forEach { e ->
+            val icon = when (e.trigger) {
+                Trigger.CHARGER -> Icons.Filled.BatteryChargingFull
+                Trigger.WIFI -> Icons.Filled.Wifi
+                Trigger.BLUETOOTH -> Icons.Filled.Bluetooth
+            }
+            TriggerRow(icon, verb(e.exit) + describeEvent(e, russian = true), onRemove = { onRemoveEvent(e) })
+        }
+    }
+}
+
+private fun verb(exit: Boolean) = if (exit) "Выключается " else "Включается "
+
+@Composable
+private fun TriggerRow(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String, onRemove: () -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(Icons.Filled.Schedule, contentDescription = null, tint = ArcCyan, modifier = Modifier.size(18.dp))
+        Icon(icon, contentDescription = null, tint = ArcCyan, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(8.dp))
         Text(
-            (if (s.exit) "Выключается " else "Включается ") + ScheduleMath.describe(s.days, s.time, russian = true),
+            text,
             style = MaterialTheme.typography.bodyMedium,
             color = ArcCyan,
             modifier = Modifier.weight(1f)
         )
         IconButton(onClick = onRemove) {
-            Icon(Icons.Filled.Close, contentDescription = "Убрать расписание", tint = OnSurfaceMuted)
+            Icon(Icons.Filled.Close, contentDescription = "Убрать: $text", tint = OnSurfaceMuted)
         }
     }
 }
@@ -230,6 +269,7 @@ private fun HowTo() {
         Example("«Создай режим отдыха: полный беззвучный, «Не беспокоить», яркость на минимум.»")
         HudNote("Потом: «режим отдыха» — включить, «выключи режим отдыха» — вернуть всё как было.")
         HudNote("По расписанию: «включай режим отдыха каждый день в 23:00», «по будням в 7 выключай режим отдыха».")
+        HudNote("По событию: «когда подключаюсь к машине — режим вождения», «когда ставлю на зарядку — режим сна».")
     }
 }
 

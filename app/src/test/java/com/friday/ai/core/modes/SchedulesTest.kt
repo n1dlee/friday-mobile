@@ -132,6 +132,11 @@ private class Table : ModeScheduleDao {
     override suspend fun upsert(schedule: ModeScheduleEntity) { schedules.value = schedules.value.filterNot { it.id == schedule.id } + schedule }
     override suspend fun delete(id: String) { schedules.value = schedules.value.filterNot { it.id == id } }
     override suspend fun deleteForMode(modeId: String) { schedules.value = schedules.value.filterNot { it.modeId == modeId } }
+    override suspend fun events() = emptyList<com.friday.ai.data.local.entity.ModeEventEntity>()
+    override fun observeEvents() = kotlinx.coroutines.flow.flowOf(emptyList<com.friday.ai.data.local.entity.ModeEventEntity>())
+    override suspend fun upsertEvent(event: com.friday.ai.data.local.entity.ModeEventEntity) = Unit
+    override suspend fun deleteEvent(id: String) = Unit
+    override suspend fun deleteEventsForMode(modeId: String) = Unit
     override suspend fun logRun(run: ModeRunEntity) { runs += run }
     override suspend fun runsSince(modeId: String, since: Long) = runs.filter { it.modeId == modeId && it.at >= since }
     override suspend fun pruneRuns(before: Long) { runs.removeAll { it.at < before } }

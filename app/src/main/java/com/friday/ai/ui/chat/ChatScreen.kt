@@ -112,12 +112,16 @@ fun ChatScreen(
     ) { }
 
     LaunchedEffect(Unit) {
-        val needed = listOf(
+        val needed = listOfNotNull(
             Manifest.permission.READ_CONTACTS,
             Manifest.permission.CALL_PHONE,
             Manifest.permission.READ_CALENDAR,
             Manifest.permission.WRITE_CALENDAR,
-            Manifest.permission.ACCESS_COARSE_LOCATION
+            Manifest.permission.ACCESS_COARSE_LOCATION,
+            // Bluetooth device names, for modes started by the car or headphones.
+            Manifest.permission.BLUETOOTH_CONNECT.takeIf {
+                android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S
+            }
         ).filter {
             ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
         }

@@ -10,6 +10,7 @@ import com.friday.ai.data.local.entity.ErrandEntity
 import com.friday.ai.data.local.entity.InteractionEntity
 import com.friday.ai.data.local.entity.MemoryEntity
 import com.friday.ai.data.local.entity.ModeEntity
+import com.friday.ai.data.local.entity.ModeEventEntity
 import com.friday.ai.data.local.entity.ModeScheduleEntity
 import com.friday.ai.data.local.entity.SessionSummaryEntity
 import com.friday.ai.data.local.entity.UserPreferenceEntity
@@ -50,6 +51,9 @@ abstract class BackupDao {
     @Query("SELECT * FROM mode_schedules")
     abstract suspend fun schedules(): List<ModeScheduleEntity>
 
+    @Query("SELECT * FROM mode_events")
+    abstract suspend fun events(): List<ModeEventEntity>
+
     @Transaction
     @Suppress("LongParameterList") // one list per table, all replaced together
     open suspend fun replaceAll(
@@ -60,10 +64,11 @@ abstract class BackupDao {
         interactions: List<InteractionEntity>,
         summaries: List<SessionSummaryEntity>,
         modes: List<ModeEntity>,
-        schedules: List<ModeScheduleEntity> = emptyList()
+        schedules: List<ModeScheduleEntity> = emptyList(),
+        events: List<ModeEventEntity> = emptyList()
     ) {
         clearPreferences(); clearMemories(); clearErrands(); clearChat(); clearInteractions(); clearSummaries()
-        clearModes(); clearSchedules()
+        clearModes(); clearSchedules(); clearEvents()
         insertPreferences(preferences)
         insertMemories(memories)
         insertErrands(errands)
@@ -72,6 +77,7 @@ abstract class BackupDao {
         insertSummaries(summaries)
         insertModes(modes)
         insertSchedules(schedules)
+        insertEvents(events)
     }
 
     @Query("DELETE FROM user_preferences") protected abstract suspend fun clearPreferences()
@@ -82,6 +88,7 @@ abstract class BackupDao {
     @Query("DELETE FROM session_summaries") protected abstract suspend fun clearSummaries()
     @Query("DELETE FROM modes") protected abstract suspend fun clearModes()
     @Query("DELETE FROM mode_schedules") protected abstract suspend fun clearSchedules()
+    @Query("DELETE FROM mode_events") protected abstract suspend fun clearEvents()
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     protected abstract suspend fun insertPreferences(rows: List<UserPreferenceEntity>)
@@ -106,4 +113,7 @@ abstract class BackupDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     protected abstract suspend fun insertSchedules(rows: List<ModeScheduleEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    protected abstract suspend fun insertEvents(rows: List<ModeEventEntity>)
 }

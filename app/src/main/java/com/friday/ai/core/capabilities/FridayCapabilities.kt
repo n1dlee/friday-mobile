@@ -50,7 +50,9 @@ data class FridayCapabilities(
         /** "Do Not Disturb access": DND and fully silent mode. */
         val dndAccess: Boolean = false,
         /** "Modify system settings": brightness. */
-        val writeSettings: Boolean = false
+        val writeSettings: Boolean = false,
+        /** "Nearby devices" (Bluetooth names); always true below Android 12, where it isn't a permission. */
+        val nearbyDevices: Boolean = false
     )
 
     data class Integrations(
