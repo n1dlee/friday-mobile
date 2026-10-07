@@ -45,6 +45,9 @@
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <!-- Modes on a schedule: alarms are re-booked after a reboot. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- NFC tags that toggle a mode. Not required: phones without NFC just don't offer it. -->
+    <uses-permission android:name="android.permission.NFC" />
+    <uses-feature android:name="android.hardware.nfc" android:required="false" />
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <!-- Modes started by a Bluetooth device (the car, headphones): its name, and paired devices. -->
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
@@ -69,6 +72,49 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- "The assistant": side button (Samsung: press and hold → Digital assistant), assist
+             gesture, a headset's voice button. Declaring it makes Friday selectable as the
+             phone's digital assistant. No screen of its own: it starts a conversation and closes. -->
+        <activity
+            android:name=".AssistActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:launchMode="singleInstance"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.intent.action.ASSIST" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VOICE_COMMAND" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!-- A Friday NFC tag touched: toggles its mode, even with Friday closed. -->
+        <activity
+            android:name=".service.NfcTagActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.nfc.action.NDEF_DISCOVERED" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/vnd.friday.mode" />
+            </intent-filter>
+        </activity>
+
+        <!-- "Поднесите метку": writes a mode's tag. -->
+        <activity
+            android:name=".service.NfcWriteActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@style/Theme.FridayMobile" />
 
         <service
             android:name=".service.FridayWakeWordService"

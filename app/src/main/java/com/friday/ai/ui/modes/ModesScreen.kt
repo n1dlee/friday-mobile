@@ -72,7 +72,8 @@ fun ModesScreen(onNavigateBack: () -> Unit, viewModel: ModesViewModel = koinView
     ModesLayout(
         modes, status, busy, onNavigateBack, viewModel::run, viewModel::stop, viewModel::delete,
         schedules = schedules, onUnschedule = viewModel::unschedule,
-        events = events, onRemoveEvent = viewModel::removeEvent
+        events = events, onRemoveEvent = viewModel::removeEvent,
+        onTag = viewModel::tag
     )
 }
 
@@ -89,7 +90,8 @@ internal fun ModesLayout(
     schedules: Map<String, List<Schedule>> = emptyMap(),
     onUnschedule: (Schedule) -> Unit = {},
     events: Map<String, List<ModeEvent>> = emptyMap(),
-    onRemoveEvent: (ModeEvent) -> Unit = {}
+    onRemoveEvent: (ModeEvent) -> Unit = {},
+    onTag: (Mode) -> Unit = {}
 ) {
     var deleting by remember { mutableStateOf<Mode?>(null) }
     HudBackground {
@@ -119,7 +121,8 @@ internal fun ModesLayout(
                         mode, index = modes.orEmpty().indexOf(mode) + 1, busy = busy == mode.id,
                         onRun = { onRun(mode) }, onStop = { onStop(mode) }, onDelete = { deleting = mode },
                         schedules = schedules[mode.id].orEmpty(), onUnschedule = onUnschedule,
-                        events = events[mode.id].orEmpty(), onRemoveEvent = onRemoveEvent
+                        events = events[mode.id].orEmpty(), onRemoveEvent = onRemoveEvent,
+                        onTag = { onTag(mode) }
                     )
                 }
                 if (!modes.isNullOrEmpty()) {
@@ -156,7 +159,8 @@ private fun ModePanel(
     schedules: List<Schedule> = emptyList(),
     onUnschedule: (Schedule) -> Unit = {},
     events: List<ModeEvent> = emptyList(),
-    onRemoveEvent: (ModeEvent) -> Unit = {}
+    onRemoveEvent: (ModeEvent) -> Unit = {},
+    onTag: () -> Unit = {}
 ) {
     HudPanel("Режим ${mode.name}", index = index, accent = if (mode.active) ArcCyan else ArcCyanDim) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -194,6 +198,7 @@ private fun ModePanel(
             } else {
                 HudButton(onClick = onRun, enabled = !busy, modifier = Modifier.weight(1f)) { Text("Включить") }
             }
+            HudOutlinedButton(onClick = onTag, enabled = !busy) { Text("Метка") }
             HudOutlinedButton(onClick = onDelete, enabled = !busy) { Text("Удалить") }
         }
     }
@@ -270,6 +275,7 @@ private fun HowTo() {
         HudNote("Потом: «режим отдыха» — включить, «выключи режим отдыха» — вернуть всё как было.")
         HudNote("По расписанию: «включай режим отдыха каждый день в 23:00», «по будням в 7 выключай режим отдыха».")
         HudNote("По событию: «когда подключаюсь к машине — режим вождения», «когда ставлю на зарядку — режим сна».")
+        HudNote("NFC-метка: «привяжи режим отдыха к метке» — касание метки включает и выключает режим.")
     }
 }
 

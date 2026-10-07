@@ -20,6 +20,12 @@ data class ModeEvent(
     val exit: Boolean
 )
 
+/** NFC on this phone: whether it can write a tag, and starting the screen that does. */
+interface NfcTags {
+    fun available(): Boolean
+    fun startWriting(modeId: String, modeName: String)
+}
+
 /** What the phone can tell about its links right now, for turning "к машине" into a device. */
 interface PhoneLinks {
     data class Bluetooth(val permitted: Boolean, val paired: List<String>, val connected: List<String>)

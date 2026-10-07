@@ -162,11 +162,13 @@ val appModule = module {
             onChanged = { now, before -> alarms.rebook(now, before) }
         )
     }
+    single { com.friday.ai.service.AndroidNfcTags(androidContext(), get()) }
     single {
         val compiler = get<com.friday.ai.core.modes.ModeCompiler>()
         com.friday.ai.core.modes.ModeEngine(
             get(), compiler::compile, get(), schedules = get(),
-            links = com.friday.ai.service.AndroidPhoneLinks(androidContext())
+            links = com.friday.ai.service.AndroidPhoneLinks(androidContext()),
+            nfc = get<com.friday.ai.service.AndroidNfcTags>()
         )
     }
     single {

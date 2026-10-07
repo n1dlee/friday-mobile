@@ -121,6 +121,17 @@ internal fun VoicePanel(viewModel: SettingsViewModel, say: (String) -> Unit) {
             }
         )
         BackgroundWorkStatus(visible = wakeWordEnabled)
+        HudNote(
+            "Боковая кнопка: выберите Пятницу цифровым помощником — и долгое нажатие будет звать её, " +
+                "даже когда слово выключено. На Samsung также: Дополнительные функции → Боковая кнопка → " +
+                "Нажатие и удержание → Цифровой помощник."
+        )
+        HudOutlinedButton(
+            onClick = { com.friday.ai.ui.openDefaultAssistantSettings(context) },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Выбрать цифрового помощника")
+        }
     }
 }
 
