@@ -247,10 +247,14 @@ class CommandRouter(private val now: () -> java.time.LocalDateTime = java.time.L
         // her e-mail, and the reply falls back to mail when there is no chat.
         ChatRequest.parse(trimmed)?.let { return it }
         MailCommands.parse(trimmed)?.let { mail ->
-            return if (mail is MailCommands.Request.Reply) CommandResult.ReplyMessage(mail.to, mail.body)
-            else CommandResult.Mail(mail)
+            return if (mail is MailCommands.Request.Reply) {
+                CommandResult.ReplyMessage(mail.to, mail.body, ChatRequest.looseReply(trimmed))
+            } else {
+                CommandResult.Mail(mail)
+            }
         }
         MessageRequest.parse(trimmed)?.let { return it }
+        ChatRequest.parseBareReply(trimmed)?.let { return it }
 
         if (timePattern.matches(trimmed)) return CommandResult.TellTime
 

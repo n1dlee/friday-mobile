@@ -216,7 +216,8 @@ class VoiceConversation(
         when {
             confirmed != null -> {
                 session.mirror(text, confirmed)
-                speakAndContinue(mine, confirmed, allowFollowUp = false)
+                // A name picked from "чьё прочитать?" is read out; "ответь …" may follow.
+                speakAndContinue(mine, confirmed, allowFollowUp = commands.awaitsMore())
             }
             ConversationControl.isFarewell(text) -> endConversation()
             else -> process(mine, text, russian)

@@ -93,7 +93,8 @@ sealed interface CommandResult {
      * [to] null or a pronoun means whoever wrote last; someone with no recent
      * chat gets an e-mail reply instead.
      */
-    data class ReplyMessage(val to: String?, val body: String) : Phone
+    /** [loose]: the whole phrase after "ответь" when nothing separated [to] from [body]. */
+    data class ReplyMessage(val to: String?, val body: String, val loose: String? = null) : Phone
 
     /** "Что сейчас играет": the track and artist from the player. */
     data object NowPlaying : Phone

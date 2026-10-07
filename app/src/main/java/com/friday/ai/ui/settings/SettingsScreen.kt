@@ -209,28 +209,22 @@ private fun IntelligencePanel(viewModel: SettingsViewModel) {
 private fun ChatsPanel(viewModel: SettingsViewModel) {
     val context = LocalContext.current
     val announceCalls by viewModel.announceCalls.collectAsStateWithLifecycle()
-    val announceMessages by viewModel.announceMessages.collectAsStateWithLifecycle()
-    // Both need the notification listener; turning one on without it goes
+    // Needs the notification listener; turning it on without it goes
     // straight to the screen that grants it.
     val needsAccess = { on: Boolean ->
         if (on && !FridayNotificationListener.isEnabled(context)) FridayNotificationListener.openSettings(context)
     }
     HudPanel("Звонки и сообщения", index = 5) {
         HudNote(
-            "Пятница читает WhatsApp, Telegram и SMS из уведомлений и отвечает на них " +
-                "(«прочитай сообщения», «ответь маме, что еду»). Нужен доступ к уведомлениям."
+            "Пятница собирает сообщения WhatsApp, Telegram и SMS, не читая их вслух, и пропускает " +
+                "рекламу. Спросите «есть непрочитанные?» — назовёт, кто писал; ответ: «ответь ему, что еду». " +
+                "Нужен доступ к уведомлениям."
         )
         HudSwitchRow(
             title = "Объявлять звонки",
             subtitle = "Говорит, кто звонит: телефон, WhatsApp или Telegram",
             checked = announceCalls,
             onChange = { needsAccess(it); viewModel.onAnnounceCallsChange(it) }
-        )
-        HudSwitchRow(
-            title = "Читать новые сообщения",
-            subtitle = "Зачитывает личное сообщение и ждёт ответа",
-            checked = announceMessages,
-            onChange = { needsAccess(it); viewModel.onAnnounceMessagesChange(it) }
         )
     }
 }

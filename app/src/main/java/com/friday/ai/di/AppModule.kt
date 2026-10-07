@@ -107,9 +107,14 @@ val appModule = module {
     single { com.friday.ai.core.MediaSearch(androidContext(), get(), get(), get()) }
     single { com.friday.ai.service.WeatherHere(androidContext(), get(), get()) }
     single { com.friday.ai.core.people.Caller(androidContext(), get(), get(), get(), get(), get()) }
-    single { com.friday.ai.service.messages.MessengerInbox() }
+    single { com.friday.ai.service.messages.SpamCheck(get()) }
+    single { com.friday.ai.service.messages.MessengerInbox(get<com.friday.ai.service.messages.SpamCheck>()::isSpam) }
+    single { com.friday.ai.service.messages.MessageSummarizer(get(), get(), get()) }
     single { com.friday.ai.service.messages.Announcer() }
-    single { com.friday.ai.service.messages.MessageAssistant(androidContext(), get(), get()) }
+    single {
+        val summarizer = get<com.friday.ai.service.messages.MessageSummarizer>()
+        com.friday.ai.service.messages.MessageAssistant(androidContext(), get(), get(), summarizer::summarize)
+    }
     single { com.friday.ai.command.PhoneActions(get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
     single {
         com.friday.ai.command.PlannerActions(get(), get(), get(), watchErrands = {
