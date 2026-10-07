@@ -88,6 +88,9 @@ Web search via Groq's browser tool for news, prices and scores. Real weather fro
 | *"Volume to 50"* · *"Flashlight off"* · *"Open Bluetooth settings"* | Done on the phone directly, no model involved |
 | *"Create a sad mode: Spotify with sad songs"* → *"Sad mode"* → *"Turn off sad mode"* | Saves the mode and reads it back, runs it without the model, then pauses the music it started |
 | *"Start rest mode every day at 11 pm"* | Runs the mode by itself at that time and posts a quiet note of what it did |
+| *"Start driving mode when I connect to the car"* | Learns which Bluetooth device the car is, and says the mode aloud each time you get in |
+| *"Link rest mode to a tag"* | Writes a signed NFC tag; touching it turns the mode on and off, even with Friday closed |
+| Long-press the side button · the Quick Settings tile | Friday listens, as if you'd said her name |
 | *"Remind me tomorrow at 9 to call the doctor"* | Calendar event with a reminder |
 | *"Remind me to buy milk"* | Location-based errand: pings you near a shop |
 
@@ -200,7 +203,10 @@ No secrets are needed to build. Your Groq key goes into the app's Settings, not 
 - [x] Encrypted key storage, diagnostics screen, verified hand-offs to other apps
 - [x] Move to a new phone: everything in one passphrase-encrypted file
 - [x] Modes you create by voice ("create a sad mode: Spotify with sad songs"), with automatic undo, schedules and learned habits
-- [ ] Modes triggered by NFC tags, the car's Bluetooth, home Wi-Fi
+- [x] Modes triggered by NFC tags, the car's Bluetooth, the charger, home Wi-Fi
+- [x] Side button, Quick Settings tile and launcher shortcuts; a handwriting notebook for the S Pen
+- [ ] Full system assistant: screen context and a session window (VoiceInteractionService)
+- [ ] Samsung DeX: right display, desktop layout
 - [ ] Camera "what is this?", Health Connect
 
 ## 🤝 Contributing
