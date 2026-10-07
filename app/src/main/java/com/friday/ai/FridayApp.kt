@@ -30,6 +30,16 @@ class FridayApp : Application() {
         scheduleMorningBrief()
         wireSessionSummaries()
         learnOwnerFromDevice()
+        bookModeSchedules()
+    }
+
+    /** Alarms don't survive an app update or a force-stop; booking again is cheap and idempotent. */
+    private fun bookModeSchedules() {
+        appScope.launch {
+            val schedules: com.friday.ai.core.modes.ModeSchedules =
+                org.koin.java.KoinJavaComponent.get(com.friday.ai.core.modes.ModeSchedules::class.java)
+            com.friday.ai.service.ModeAlarms(this@FridayApp).rebook(schedules.all(), emptySet())
+        }
     }
 
     /**

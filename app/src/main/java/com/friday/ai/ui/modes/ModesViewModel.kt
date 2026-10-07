@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -20,11 +21,22 @@ import kotlinx.coroutines.launch
  */
 class ModesViewModel(
     store: ModeStore,
-    private val commands: CommandExecutor
+    private val commands: CommandExecutor,
+    private val timetable: com.friday.ai.core.modes.ModeSchedules? = null
 ) : ViewModel() {
 
     val modes: StateFlow<List<Mode>?> = store.observe()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** Each mode's schedules, by mode id. */
+    val schedules: StateFlow<Map<String, List<com.friday.ai.core.modes.Schedule>>> =
+        (timetable?.observe() ?: kotlinx.coroutines.flow.flowOf(emptyList()))
+            .map { all -> all.groupBy { it.modeId } }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    fun unschedule(s: com.friday.ai.core.modes.Schedule) {
+        viewModelScope.launch { timetable?.delete(s.id) }
+    }
 
     private val _status = MutableStateFlow<String?>(null)
     /** What the last action reported, as Friday would have said it. */

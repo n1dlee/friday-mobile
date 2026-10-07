@@ -156,8 +156,15 @@ val appModule = module {
         )
     }
     single {
+        val alarms = com.friday.ai.service.ModeAlarms(androidContext())
+        com.friday.ai.core.modes.ModeSchedules(
+            get<FridayDatabase>().modeScheduleDao(), get(),
+            onChanged = { now, before -> alarms.rebook(now, before) }
+        )
+    }
+    single {
         val compiler = get<com.friday.ai.core.modes.ModeCompiler>()
-        com.friday.ai.core.modes.ModeEngine(get(), compiler::compile, get())
+        com.friday.ai.core.modes.ModeEngine(get(), compiler::compile, get(), schedules = get())
     }
     single {
         com.friday.ai.command.CommandExecutor(
@@ -206,8 +213,8 @@ val appModule = module {
         )
     }
     viewModel { com.friday.ai.ui.diagnostics.DiagnosticsViewModel(get()) }
-    viewModel { com.friday.ai.ui.modes.ModesViewModel(get(), get()) }
-    viewModel { com.friday.ai.ui.settings.TransferViewModel(androidContext(), get(), get()) }
+    viewModel { com.friday.ai.ui.modes.ModesViewModel(get(), get(), get()) }
+    viewModel { com.friday.ai.ui.settings.TransferViewModel(androidContext(), get(), get(), get()) }
     viewModel {
         LazuriDashboardViewModel(
             memoryDao = get(),

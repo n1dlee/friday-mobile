@@ -9,11 +9,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -33,6 +36,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.friday.ai.core.modes.Mode
 import com.friday.ai.core.modes.ModeSteps
+import com.friday.ai.core.modes.Schedule
+import com.friday.ai.core.modes.ScheduleMath
 import com.friday.ai.ui.theme.ArcCyan
 import com.friday.ai.ui.theme.ArcCyanDim
 import com.friday.ai.ui.theme.HudBackground
@@ -56,7 +61,11 @@ fun ModesScreen(onNavigateBack: () -> Unit, viewModel: ModesViewModel = koinView
     val modes by viewModel.modes.collectAsStateWithLifecycle()
     val status by viewModel.status.collectAsStateWithLifecycle()
     val busy by viewModel.busy.collectAsStateWithLifecycle()
-    ModesLayout(modes, status, busy, onNavigateBack, viewModel::run, viewModel::stop, viewModel::delete)
+    val schedules by viewModel.schedules.collectAsStateWithLifecycle()
+    ModesLayout(
+        modes, status, busy, onNavigateBack, viewModel::run, viewModel::stop, viewModel::delete,
+        schedules = schedules, onUnschedule = viewModel::unschedule
+    )
 }
 
 /** Without the view model: what the screenshot test renders. */
@@ -68,7 +77,9 @@ internal fun ModesLayout(
     onNavigateBack: () -> Unit,
     onRun: (Mode) -> Unit,
     onStop: (Mode) -> Unit,
-    onDelete: (Mode) -> Unit
+    onDelete: (Mode) -> Unit,
+    schedules: Map<String, List<Schedule>> = emptyMap(),
+    onUnschedule: (Schedule) -> Unit = {}
 ) {
     var deleting by remember { mutableStateOf<Mode?>(null) }
     HudBackground {
@@ -96,7 +107,8 @@ internal fun ModesLayout(
                 items(modes.orEmpty(), key = { it.id }) { mode ->
                     ModePanel(
                         mode, index = modes.orEmpty().indexOf(mode) + 1, busy = busy == mode.id,
-                        onRun = { onRun(mode) }, onStop = { onStop(mode) }, onDelete = { deleting = mode }
+                        onRun = { onRun(mode) }, onStop = { onStop(mode) }, onDelete = { deleting = mode },
+                        schedules = schedules[mode.id].orEmpty(), onUnschedule = onUnschedule
                     )
                 }
                 if (!modes.isNullOrEmpty()) {
@@ -129,7 +141,9 @@ private fun ModePanel(
     busy: Boolean,
     onRun: () -> Unit,
     onStop: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    schedules: List<Schedule> = emptyList(),
+    onUnschedule: (Schedule) -> Unit = {}
 ) {
     HudPanel("Режим ${mode.name}", index = index, accent = if (mode.active) ArcCyan else ArcCyanDim) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -158,6 +172,10 @@ private fun ModePanel(
                 )
             }
         }
+        if (schedules.isNotEmpty()) {
+            // One group: the panel's spacing between rows would leave gaps around the 48dp remove buttons.
+            Column { schedules.sortedBy { it.exit }.forEach { s -> ScheduleRow(s, onRemove = { onUnschedule(s) }) } }
+        }
         HudReadout("Запусков", mode.runCount.toString())
         if (busy) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -167,6 +185,23 @@ private fun ModePanel(
                 HudButton(onClick = onRun, enabled = !busy, modifier = Modifier.weight(1f)) { Text("Включить") }
             }
             HudOutlinedButton(onClick = onDelete, enabled = !busy) { Text("Удалить") }
+        }
+    }
+}
+
+@Composable
+private fun ScheduleRow(s: Schedule, onRemove: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(Icons.Filled.Schedule, contentDescription = null, tint = ArcCyan, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(
+            (if (s.exit) "Выключается " else "Включается ") + ScheduleMath.describe(s.days, s.time, russian = true),
+            style = MaterialTheme.typography.bodyMedium,
+            color = ArcCyan,
+            modifier = Modifier.weight(1f)
+        )
+        IconButton(onClick = onRemove) {
+            Icon(Icons.Filled.Close, contentDescription = "Убрать расписание", tint = OnSurfaceMuted)
         }
     }
 }
@@ -194,6 +229,7 @@ private fun HowTo() {
         Example("«Создай режим грусти. Это режим, где включается Spotify с грустными песнями.»")
         Example("«Создай режим отдыха: полный беззвучный, «Не беспокоить», яркость на минимум.»")
         HudNote("Потом: «режим отдыха» — включить, «выключи режим отдыха» — вернуть всё как было.")
+        HudNote("По расписанию: «включай режим отдыха каждый день в 23:00», «по будням в 7 выключай режим отдыха».")
     }
 }
 
