@@ -51,6 +51,9 @@ sealed interface CommandResult {
          * a [com.friday.ai.core.modes.Trigger] key; [target] is how the owner
          * named the device or network.
          */
+        /** "Привяжи режим отдыха к метке": the next NFC tag held to the phone toggles the mode. */
+        data class Tag(val id: String) : Mode
+
         data class OnEvent(
             val id: String,
             val trigger: String,

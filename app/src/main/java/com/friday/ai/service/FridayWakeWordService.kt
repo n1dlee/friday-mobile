@@ -63,6 +63,9 @@ class FridayWakeWordService : Service() {
         /** Long enough for a player to react to getting the audio back. */
         private const val FOCUS_SETTLE_MS = 800L
 
+        /** With the wake word off, the service stays only for the tag's reply. */
+        private const val TAG_SPEECH_MS = 15_000L
+
         fun start(context: Context) {
             try {
                 val intent = Intent(context, FridayWakeWordService::class.java)
@@ -90,6 +93,21 @@ class FridayWakeWordService : Service() {
                 else context.startService(intent)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to invoke: ${e.message}")
+            }
+        }
+
+        private const val ACTION_TAG = "com.friday.ai.TAG"
+        private const val EXTRA_PAYLOAD = "payload"
+
+        /** A mode's NFC tag was touched: toggle the mode and say what happened. */
+        fun tag(context: Context, payload: ByteArray) {
+            try {
+                val intent = Intent(context, FridayWakeWordService::class.java)
+                    .setAction(ACTION_TAG).putExtra(EXTRA_PAYLOAD, payload)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent)
+                else context.startService(intent)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to handle a tag: ${e.message}")
             }
         }
 
@@ -187,15 +205,19 @@ class FridayWakeWordService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val invoked = intent?.action == ACTION_INVOKE
+        val tagged = intent?.takeIf { it.action == ACTION_TAG }?.getByteArrayExtra(EXTRA_PAYLOAD)
         if (!::conversation.isInitialized) return START_NOT_STICKY
         if (!started) {
             started = true
             scope.launch {
                 begin()
                 if (invoked) conversation.onWake("")
+                tagged?.let { onTag(it) }
             }
         } else if (invoked) {
             conversation.onWake("")
+        } else if (tagged != null) {
+            scope.launch { onTag(tagged) }
         } else if (!wakeWordOn) {
             // Running for the side button only, and now the wake word was switched on.
             scope.launch { begin() }
@@ -233,6 +255,27 @@ class FridayWakeWordService : Service() {
             if (ownerIsThere) conversation.announce(said, listenAfter = false) else notifyModeResult(this, said)
         }.also { it.start() }
     }
+
+    /** A Friday NFC tag: its mode is toggled, if this phone signed it. */
+    private suspend fun onTag(payload: ByteArray) {
+        val secret = get<AndroidNfcTags>(AndroidNfcTags::class.java).secret()
+        val said = when (val read = com.friday.ai.core.modes.ModeTags.read(payload, secret)) {
+            is com.friday.ai.core.modes.ModeTags.Read.Mode -> {
+                val engine = get<com.friday.ai.core.modes.ModeEngine>(com.friday.ai.core.modes.ModeEngine::class.java)
+                val commands = get<CommandExecutor>(CommandExecutor::class.java)
+                engine.onTag(read.id, russian = true) { step ->
+                    (commands.execute(step, russian = true) as? CommandExecutor.Outcome.Reply)?.text.orEmpty()
+                }
+            }
+            com.friday.ai.core.modes.ModeTags.Read.Forged -> "Эту метку записал не этот телефон — не запускаю."
+            com.friday.ai.core.modes.ModeTags.Read.NotATag -> return
+        }
+        // Touching a tag is the owner being there: said aloud, like the car connecting.
+        conversation.announce(said, listenAfter = false)
+        if (!wakeWordOn) scope.launch { delay(TAG_SPEECH_MS); if (!overlayShowing()) stopSelf() }
+    }
+
+    private fun overlayShowing() = runCatching { overlay.isShowing }.getOrDefault(false)
 
     override fun onDestroy() {
         links?.stop()

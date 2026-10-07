@@ -62,6 +62,9 @@ class ModesViewModel(
 
     fun delete(mode: Mode) = act(mode, CommandResult.Mode.Delete(mode.name))
 
+    /** Opens the screen that writes the mode to an NFC tag. */
+    fun tag(mode: Mode) = act(mode, CommandResult.Mode.Tag(mode.id))
+
     private fun act(mode: Mode, request: CommandResult.Mode) {
         _busy.value = mode.id
         viewModelScope.launch {

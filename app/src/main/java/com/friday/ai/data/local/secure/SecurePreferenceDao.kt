@@ -41,7 +41,8 @@ class SecurePreferenceDao(
         /** Marks a sealed value; anything else under a secret key is a legacy plain value. */
         const val SEALED_PREFIX = "enc:v1:"
 
-        val SECRET_KEYS = setOf("groq_api_key", "lazuri_api_key")
+        /** The NFC secret signs the owner's mode tags: a secret like the keys. */
+        val SECRET_KEYS = setOf("groq_api_key", "lazuri_api_key", "nfc_secret")
     }
 
     override suspend fun get(key: String): String? {

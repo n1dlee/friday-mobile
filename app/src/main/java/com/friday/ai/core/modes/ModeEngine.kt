@@ -34,7 +34,9 @@ class ModeEngine(
     /** Schedules and run history; without them, modes simply have no timetable. */
     private val schedules: ModeSchedules? = null,
     /** The phone's Bluetooth and Wi-Fi, to tell which device "машина" is. */
-    private val links: PhoneLinks? = null
+    private val links: PhoneLinks? = null,
+    /** NFC tags for modes; null where the phone has none. */
+    private val nfc: NfcTags? = null
 ) {
 
     private companion object {
@@ -81,7 +83,19 @@ class ModeEngine(
      * system setting, not a mode Friday doesn't have.
      */
     fun route(text: String): CommandResult.Mode? =
-        correction(text) ?: eventRequest(text) ?: scheduleRequest(text) ?: cancelRequest(text) ?: request(text)
+        correction(text) ?: tagRequest(text) ?: eventRequest(text) ?: scheduleRequest(text) ?: cancelRequest(text) ?: request(text)
+
+    private val tagPhrases = listOf(
+        Regex("(?:привяжи|запиши|сохрани|поставь)\\s+режим\\p{L}*\\s+(.+?)\\s+(?:к|на|в)\\s+(?:nfc[- ]?)?метк\\p{L}*"),
+        Regex("(?:сделай|создай|запиши)\\s+(?:nfc[- ]?)?метку\\s+(?:для|на)\\s+режим\\p{L}*\\s+(.+)$"),
+        Regex("(?:link|write|put)\\s+(?:the\\s+)?(.+?)\\s+mode\\s+(?:to|on)\\s+(?:an?\\s+)?(?:nfc\\s+)?tag")
+    )
+
+    private fun tagRequest(text: String): CommandResult.Mode? {
+        val t = text.trim().lowercase().replace('ё', 'е').trimEnd('.', '!', '?')
+        val rest = tagPhrases.firstNotNullOfOrNull { it.find(t)?.groupValues?.get(1) } ?: return null
+        return nameAtStart(rest)?.let { CommandResult.Mode.Tag(it.id) }
+    }
 
     private fun eventRequest(text: String): CommandResult.Mode? {
         if (schedules == null || links == null) return null
@@ -184,6 +198,7 @@ class ModeEngine(
             is CommandResult.Mode.Schedule -> schedule(request, say)
             is CommandResult.Mode.Unschedule -> unschedule(request.id, say)
             is CommandResult.Mode.OnEvent -> onEvent(request, say)
+            is CommandResult.Mode.Tag -> tag(request.id, say)
             CommandResult.Mode.ListAll -> list(say)
         }
     }
@@ -238,6 +253,32 @@ class ModeEngine(
         )
         val reply = say("Режим ${mode.name}. ", "${mode.name} mode. ") + sentences(messages)
         return if (automatic) reply else reply + habitQuestion(mode, say)
+    }
+
+    // --- NFC tags ---------------------------------------------------------------
+
+    private fun tag(id: String, say: Say): String {
+        val mode = store.byId(id) ?: return say("Этого режима уже нет.", "That mode is gone.")
+        val tags = nfc?.takeIf { it.available() }
+            ?: return say("NFC выключен или его нет — включите NFC в настройках и скажите ещё раз.", "NFC is off or missing — turn it on and say it again.")
+        tags.startWriting(mode.id, mode.name)
+        return say(
+            "Поднесите NFC-метку к задней панели телефона. Потом касание метки будет включать и выключать режим ${mode.name}.",
+            "Hold an NFC tag to the back of the phone. Touching it will then turn ${mode.name} mode on and off."
+        )
+    }
+
+    /**
+     * A tag for [modeId] was touched: the mode is toggled. Like a schedule, a
+     * tag can be copied, so steps that act towards people are left out.
+     */
+    suspend fun onTag(modeId: String, russian: Boolean, runner: suspend (CommandResult) -> String): String {
+        val say = Say(russian)
+        val mode = store.byId(modeId) ?: return say(
+            "Эта метка была для режима, которого больше нет.", "This tag was for a mode that no longer exists."
+        )
+        return if (mode.active) exit(mode, say, runner)
+        else run(mode, say, runner, automatic = true, steps = mode.steps.filterNot { it.tool in NEEDS_OWNER })
     }
 
     // --- events --------------------------------------------------------------
