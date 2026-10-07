@@ -30,6 +30,7 @@ import com.friday.ai.ui.dashboard.LazuriDashboardViewModel
 import com.friday.ai.ui.settings.SettingsViewModel
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.module.dsl.viewModel
+import kotlinx.coroutines.launch
 import org.koin.dsl.bind
 import org.koin.dsl.module
 
@@ -96,7 +97,9 @@ val appModule = module {
     single { com.friday.ai.core.AlarmSetter(androidContext()) }
     single {
         com.friday.ai.core.DeviceContext(
-            androidContext(), com.friday.ai.core.capabilities.CapabilityProbe(androidContext(), get())
+            androidContext(), com.friday.ai.core.capabilities.CapabilityProbe(
+                androidContext(), get(), modes = { get<com.friday.ai.core.modes.ModeStore>().all().map { it.name } }
+            )
         )
     }
     single { com.friday.ai.core.people.PeopleDirectory(get(), get()) }
@@ -127,8 +130,39 @@ val appModule = module {
             }
         ).apply { load() }
     }
+    // Modes the owner creates by voice: stored, compiled once by the model, then run without it.
+    single { get<FridayDatabase>().modeDao() }
     single {
-        com.friday.ai.command.CommandExecutor(get(), get(), get(), get(), get(), messages = get(), learned = get())
+        val writes = kotlinx.coroutines.CoroutineScope(
+            kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO
+        )
+        com.friday.ai.core.modes.ModeStore(get()).also { store -> writes.launch { store.load() } }
+    }
+    single {
+        val device = get<com.friday.ai.core.DeviceContext>()
+        val prefs = get<com.friday.ai.data.local.dao.UserPreferenceDao>()
+        val catalog = get<com.friday.ai.service.ModelCatalog>()
+        com.friday.ai.core.modes.ModeCompiler(
+            get(),
+            access = {
+                com.friday.ai.core.modes.ModeCompiler.Access(
+                    apiKey = prefs.get(com.friday.ai.data.repository.AssistantRepositoryImpl.PREF_API_KEY).orEmpty(),
+                    model = catalog.model(com.friday.ai.core.GroqModels.Role.CHAT),
+                    backup = catalog.model(com.friday.ai.core.GroqModels.Role.FAST)
+                )
+            },
+            capabilities = { device.refresh() },
+            phone = { device.describe() }
+        )
+    }
+    single {
+        val compiler = get<com.friday.ai.core.modes.ModeCompiler>()
+        com.friday.ai.core.modes.ModeEngine(get(), compiler::compile, get())
+    }
+    single {
+        com.friday.ai.command.CommandExecutor(
+            get(), get(), get(), get(), get(), messages = get(), learned = get(), modes = get()
+        )
     }
     single {
         val device = get<com.friday.ai.core.DeviceContext>()
@@ -172,7 +206,8 @@ val appModule = module {
         )
     }
     viewModel { com.friday.ai.ui.diagnostics.DiagnosticsViewModel(get()) }
-    viewModel { com.friday.ai.ui.settings.TransferViewModel(androidContext(), get()) }
+    viewModel { com.friday.ai.ui.modes.ModesViewModel(get(), get()) }
+    viewModel { com.friday.ai.ui.settings.TransferViewModel(androidContext(), get(), get()) }
     viewModel {
         LazuriDashboardViewModel(
             memoryDao = get(),

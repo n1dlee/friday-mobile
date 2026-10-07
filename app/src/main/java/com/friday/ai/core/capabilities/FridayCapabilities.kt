@@ -19,7 +19,9 @@ data class FridayCapabilities(
     val integrations: Integrations = Integrations(),
     val voice: Voice = Voice(),
     val assistant: Assistant = Assistant(),
-    val privileged: Privileged = Privileged()
+    val privileged: Privileged = Privileged(),
+    /** Names of the owner's modes, for the model to run with run_mode. */
+    val modes: List<String> = emptyList()
 ) {
 
     data class Device(

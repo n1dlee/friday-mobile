@@ -19,6 +19,22 @@ sealed interface CommandResult {
     /** Fetches something to tell the user. */
     sealed interface Info : CommandResult
 
+    /**
+     * The owner's modes: created, run and undone by voice
+     * ("создай режим грусти: …", "режим грусти", "выключи режим грусти").
+     * [name] is as spoken; matching it to a saved mode is the engine's job.
+     */
+    sealed interface Mode : CommandResult {
+        data class Create(val name: String, val description: String?) : Mode
+        data class Run(val name: String) : Mode
+        data class Exit(val name: String) : Mode
+        data class Describe(val name: String) : Mode
+        data class Delete(val name: String) : Mode
+        data object ListAll : Mode
+        /** "Отмена" right after creating one: the mode just made is removed. */
+        data class CancelCreated(val id: String) : Mode
+    }
+
     data class OpenApp(val appName: String, val packageHint: String?) : Phone
     data class CloseApp(val appName: String, val packageHint: String?) : Phone
     /** [via] is an app the user named ("по ватсапу"), or SMS for "по телефону" — the ordinary line. */

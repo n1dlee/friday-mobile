@@ -49,7 +49,8 @@ class SettingsTransfer(
             errands = backup.errands(),
             chat = backup.chat(),
             interactions = backup.interactions(),
-            summaries = backup.summaries()
+            summaries = backup.summaries(),
+            modes = backup.modes()
         )
         return withContext(Dispatchers.Default) { archive.seal(content, passphrase) }
     }
@@ -83,7 +84,8 @@ class SettingsTransfer(
             errands = content.errands,
             chat = content.chat,
             interactions = content.interactions,
-            summaries = content.summaries
+            summaries = content.summaries,
+            modes = content.modes
         )
     }
 

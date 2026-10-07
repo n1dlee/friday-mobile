@@ -40,7 +40,8 @@ private val allGood = FridayCapabilities(
         dndAccess = true, writeSettings = true
     ),
     integrations = FridayCapabilities.Integrations(groqKey = true, gmail = true, lazuri = true),
-    voice = FridayCapabilities.Voice(wakeWordEnabled = true, wakeModelReady = true, voiceProfile = true, listening = true)
+    voice = FridayCapabilities.Voice(wakeWordEnabled = true, wakeModelReady = true, voiceProfile = true, listening = true),
+    modes = listOf("отдыха")
 )
 
 private fun FridayCapabilities.withoutGmail() = copy(integrations = integrations.copy(gmail = false))

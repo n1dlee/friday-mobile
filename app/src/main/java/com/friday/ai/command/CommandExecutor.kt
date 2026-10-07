@@ -3,6 +3,7 @@ package com.friday.ai.command
 import android.util.Log
 import com.friday.ai.agent.LearnedCommands
 import com.friday.ai.core.CommandRouter
+import com.friday.ai.core.modes.ModeEngine
 import java.time.LocalDateTime
 import com.friday.ai.domain.model.CommandResult
 import com.friday.ai.service.mail.MailAssistant
@@ -33,7 +34,8 @@ class CommandExecutor(
     private val io: CoroutineDispatcher = Dispatchers.IO,
     private val messages: MessageAssistant? = null,
     private val learned: LearnedCommands? = null,
-    private val now: () -> LocalDateTime = LocalDateTime::now
+    private val now: () -> LocalDateTime = LocalDateTime::now,
+    private val modes: ModeEngine? = null
 ) {
 
     /** What came of a command. Most are a reply; three need the caller. */
@@ -71,6 +73,11 @@ class CommandExecutor(
      */
     fun route(text: String): CommandResult {
         learned?.noteReply(text)
+        // The owner's own modes come first: one named "тишины" means theirs, not the DND phrase.
+        modes?.route(text)?.let {
+            lastRouteLearned = false
+            return it
+        }
         val routed = router.route(text)
         val fromLesson = if (routed is CommandResult.ChatMessage) learned?.command(text, now()) else null
         lastRouteLearned = fromLesson != null
@@ -108,6 +115,11 @@ class CommandExecutor(
         return Outcome.Reply(replies.joinToString(" ") { it.trim().let { r -> if (r.last() in ".!?…") r else "$r." } })
     }
 
+    /** A step inside a mode always yields words. */
+    private fun replyOf(outcome: Outcome, russian: Boolean): String =
+        (outcome as? Outcome.Reply)?.text
+            ?: if (russian) "Это нужно сделать отдельно." else "That needs doing on its own."
+
     private suspend fun single(command: CommandResult, russian: Boolean): Outcome = try {
         // Every action here may touch a content provider, a system service
         // or the network.
@@ -120,6 +132,10 @@ class CommandExecutor(
                 is CommandResult.AnalyzeScreen -> Outcome.NeedsScreen
                 is CommandResult.AnalyzeFile -> Outcome.NeedsFile(command.fileHint)
                 is CommandResult.Sequence -> inOrder(command.steps, russian)
+                is CommandResult.Mode -> Outcome.Reply(
+                    modes?.handle(command, russian) { step -> replyOf(single(step, russian), russian) }
+                        ?: if (russian) "Режимы недоступны." else "Modes aren't available."
+                )
             }
         }
     } catch (e: CancellationException) {

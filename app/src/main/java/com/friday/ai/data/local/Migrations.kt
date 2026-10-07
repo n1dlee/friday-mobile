@@ -125,12 +125,32 @@ object Migrations {
     }
 
     /** Every migration, in order, for the database builder. */
+    /** v8 added modes the owner creates by voice. */
+    val MIGRATION_7_8 = object : Migration(7, 8) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `modes` (" +
+                    "`id` TEXT NOT NULL, " +
+                    "`name` TEXT NOT NULL, " +
+                    "`aliases` TEXT NOT NULL, " +
+                    "`description` TEXT NOT NULL, " +
+                    "`steps` TEXT NOT NULL, " +
+                    "`undo` TEXT, " +
+                    "`createdAt` INTEGER NOT NULL, " +
+                    "`lastRunAt` INTEGER NOT NULL, " +
+                    "`runCount` INTEGER NOT NULL, " +
+                    "PRIMARY KEY(`id`))"
+            )
+        }
+    }
+
     val ALL: Array<Migration> = arrayOf(
         MIGRATION_1_2,
         MIGRATION_2_3,
         MIGRATION_3_4,
         MIGRATION_4_5,
         MIGRATION_5_6,
-        MIGRATION_6_7
+        MIGRATION_6_7,
+        MIGRATION_7_8
     )
 }
