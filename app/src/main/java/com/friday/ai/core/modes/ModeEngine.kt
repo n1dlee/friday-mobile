@@ -269,10 +269,11 @@ class ModeEngine(
     }
 
     /**
-     * A tag for [modeId] was touched: the mode is toggled. Like a schedule, a
-     * tag can be copied, so steps that act towards people are left out.
+     * A tag or a launcher shortcut for [modeId]: the mode is toggled. Like a
+     * schedule, a tag can be copied, so steps that act towards people are
+     * left out.
      */
-    suspend fun onTag(modeId: String, russian: Boolean, runner: suspend (CommandResult) -> String): String {
+    suspend fun toggle(modeId: String, russian: Boolean, runner: suspend (CommandResult) -> String): String {
         val say = Say(russian)
         val mode = store.byId(modeId) ?: return say(
             "Эта метка была для режима, которого больше нет.", "This tag was for a mode that no longer exists."
