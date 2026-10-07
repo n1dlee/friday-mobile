@@ -172,8 +172,18 @@ val appModule = module {
         )
     }
     single {
+        val keyguard = androidContext().getSystemService(android.app.KeyguardManager::class.java)
+        val prefs = get<com.friday.ai.data.local.dao.UserPreferenceDao>()
         com.friday.ai.command.CommandExecutor(
-            get(), get(), get(), get(), get(), messages = get(), learned = get(), modes = get()
+            get(), get(), get(), get(), get(), messages = get(), learned = get(), modes = get(),
+            lock = {
+                val locked = keyguard?.isKeyguardLocked == true
+                // Only a profile that checks commands, not just the wake word, says it's the owner.
+                val verified = !locked || com.friday.ai.core.VoiceProfile
+                    .deserialise(prefs.get(com.friday.ai.service.FridayWakeWordService.PREF_VOICE_PROFILE))
+                    ?.coversCommands == true
+                locked to verified
+            }
         )
     }
     single {

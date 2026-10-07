@@ -35,7 +35,9 @@ class CommandExecutor(
     private val messages: MessageAssistant? = null,
     private val learned: LearnedCommands? = null,
     private val now: () -> LocalDateTime = LocalDateTime::now,
-    private val modes: ModeEngine? = null
+    private val modes: ModeEngine? = null,
+    /** Whether the phone is locked, and whether the owner's voice is verified ([LockPolicy]). */
+    private val lock: suspend () -> Pair<Boolean, Boolean> = { false to true }
 ) {
 
     /** What came of a command. Most are a reply; three need the caller. */
@@ -122,7 +124,13 @@ class CommandExecutor(
         (outcome as? Outcome.Reply)?.text
             ?: if (russian) "Это нужно сделать отдельно." else "That needs doing on its own."
 
-    private suspend fun single(command: CommandResult, russian: Boolean): Outcome = try {
+    private suspend fun single(command: CommandResult, russian: Boolean): Outcome {
+        val (locked, verified) = lock()
+        if (LockPolicy.needsUnlock(command, locked, verified)) return Outcome.Reply(LockPolicy.reply(russian))
+        return carryOut(command, russian)
+    }
+
+    private suspend fun carryOut(command: CommandResult, russian: Boolean): Outcome = try {
         // Every action here may touch a content provider, a system service
         // or the network.
         withContext(io) {
