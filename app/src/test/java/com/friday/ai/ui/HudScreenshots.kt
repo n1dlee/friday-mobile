@@ -14,6 +14,8 @@ import androidx.compose.ui.Modifier
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.unit.dp
+import com.friday.ai.core.modes.Days
+import com.friday.ai.core.modes.Schedule
 import com.friday.ai.domain.model.AssistantMode
 import com.friday.ai.domain.model.ChatUiState
 import com.friday.ai.domain.model.Message
@@ -34,6 +36,7 @@ import com.friday.ai.ui.theme.HudSwitchRow
 import com.friday.ai.ui.theme.HudTopBar
 import com.friday.ai.ui.theme.StatusDot
 import java.io.File
+import java.time.LocalTime
 import org.junit.Assume
 import org.junit.Before
 import org.junit.Rule
@@ -151,8 +154,8 @@ class HudScreenshots {
             busy = null, onNavigateBack = {}, onRun = {}, onStop = {}, onDelete = {},
             schedules = mapOf(
                 "1" to listOf(
-                    com.friday.ai.core.modes.Schedule("a", "1", false, java.time.LocalTime.of(23, 0), com.friday.ai.core.modes.Days.ALL),
-                    com.friday.ai.core.modes.Schedule("b", "1", true, java.time.LocalTime.of(7, 0), com.friday.ai.core.modes.Days.WEEKDAYS)
+                    Schedule("a", "1", false, LocalTime.of(23, 0), Days.ALL),
+                    Schedule("b", "1", true, LocalTime.of(7, 0), Days.WEEKDAYS)
                 )
             )
         )
