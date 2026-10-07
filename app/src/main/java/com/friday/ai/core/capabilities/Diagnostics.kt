@@ -38,6 +38,9 @@ object Diagnostics {
         MICROPHONE, POST_NOTIFICATIONS, OVERLAY, NOTIFICATION_ACCESS, BATTERY,
         CONTACTS, PHONE, CALENDAR, LOCATION, DND_ACCESS, WRITE_SETTINGS, NEARBY_DEVICES,
 
+        /** The phone's default digital assistant, which the side button calls. */
+        ASSISTANT,
+
         /** Friday's own Settings screen: API key, wake word, voice model and profile, Gmail, export. */
         FRIDAY_SETTINGS
     }
@@ -99,9 +102,15 @@ object Diagnostics {
             "wake_word", "Слово «Пятница»", "Включено",
             "Выключено: Пятница слушает, только когда открыто приложение", Fix.FRIDAY_SETTINGS, optional = true
         ).row(Group.VOICE, v.wakeWordEnabled)
-        if (!v.wakeWordEnabled) return listOf(wakeWord)
+        val sideButton = Check(
+            "assistant", "Боковая кнопка", "Зовёт Пятницу: она выбрана цифровым помощником",
+            "Зовёт другого помощника. Выберите Пятницу: Приложения по умолчанию → Цифровой помощник",
+            Fix.ASSISTANT, optional = true
+        ).row(Group.VOICE, c.assistant.active)
+        if (!v.wakeWordEnabled) return listOf(wakeWord, sideButton)
         return listOf(
             wakeWord,
+            sideButton,
             Check(
                 "wake_model", "Модель слова", "Скачана",
                 "Не скачана: слово не может работать", Fix.FRIDAY_SETTINGS
@@ -171,10 +180,6 @@ object Diagnostics {
         fun yesNo(on: Boolean) = if (on) "Есть" else "Нет"
         return listOf(
             info("model", "Устройство", "${d.manufacturer} ${d.model} · Android API ${d.sdk}".trim()),
-            info(
-                "assistant", "Цифровой ассистент",
-                if (c.assistant.active) "Пятница" else "Другое приложение"
-            ),
             info("nfc", "NFC", yesNo(d.nfc)),
             info("uwb", "UWB", yesNo(d.uwb)),
             info("stylus", "Стилус", yesNo(d.stylus)),

@@ -70,6 +70,27 @@
             </intent-filter>
         </activity>
 
+        <!-- "The assistant": side button (Samsung: press and hold → Digital assistant), assist
+             gesture, a headset's voice button. Declaring it makes Friday selectable as the
+             phone's digital assistant. No screen of its own: it starts a conversation and closes. -->
+        <activity
+            android:name=".AssistActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:launchMode="singleInstance"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.intent.action.ASSIST" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VOICE_COMMAND" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
         <service
             android:name=".service.FridayWakeWordService"
             android:exported="false"

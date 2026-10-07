@@ -178,6 +178,7 @@ private fun rememberFixer(onOpenSettings: () -> Unit, onChanged: () -> Unit): (F
             )
             Fix.NOTIFICATION_ACCESS -> FridayNotificationListener.openSettings(context)
             Fix.BATTERY -> requestBatteryExemption(context)
+            Fix.ASSISTANT -> com.friday.ai.ui.openDefaultAssistantSettings(context)
             Fix.DND_ACCESS -> context.startActivity(
                 Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             )

@@ -363,13 +363,13 @@ class SettingsViewModel(
     fun onWakeWordToggle(enabled: Boolean) {
         _wakeWordEnabled.value = enabled
         viewModelScope.launch {
+            // Saved first: the service reads it when it starts.
             prefDao.set(UserPreferenceEntity("wake_word_enabled", enabled.toString()))
-        }
-
-        if (enabled) {
-            FridayWakeWordService.start(appContext)
-        } else {
-            FridayWakeWordService.stop(appContext)
+            if (enabled) {
+                FridayWakeWordService.start(appContext)
+            } else {
+                FridayWakeWordService.stop(appContext)
+            }
         }
     }
 
