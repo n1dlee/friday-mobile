@@ -30,6 +30,7 @@ import com.friday.ai.ui.dashboard.LazuriDashboardViewModel
 import com.friday.ai.ui.settings.SettingsViewModel
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.module.dsl.viewModel
+import org.koin.dsl.bind
 import org.koin.dsl.module
 
 val appModule = module {
@@ -47,7 +48,12 @@ val appModule = module {
             .build()
     }
     single { get<FridayDatabase>().chatMessageDao() }
-    single { get<FridayDatabase>().userPreferenceDao() }
+    // API keys are sealed with Android Keystore before they reach the table.
+    single {
+        com.friday.ai.data.local.secure.SecurePreferenceDao(
+            get<FridayDatabase>().userPreferenceDao(), com.friday.ai.data.local.secure.KeystoreCipher()
+        )
+    } bind com.friday.ai.data.local.dao.UserPreferenceDao::class
     single { get<FridayDatabase>().memoryDao() }
     single { get<FridayDatabase>().interactionDao() }
     single { get<FridayDatabase>().notificationDao() }
