@@ -1,5 +1,6 @@
 package com.friday.ai.core
 
+import android.app.SearchManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -8,11 +9,13 @@ import android.media.MediaMetadata
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
+import android.provider.MediaStore
 import android.provider.Settings
 import android.util.Log
 import android.view.KeyEvent
 import com.friday.ai.domain.model.MediaAction
 import com.friday.ai.service.FridayNotificationListener
+import kotlinx.coroutines.delay
 
 /**
  * Play, pause and skip in whatever music app is running.
@@ -31,6 +34,9 @@ class MediaControls(private val context: Context) {
 
     private companion object {
         const val TAG = "MediaControls"
+
+        const val SESSION_WAIT_MS = 6_000
+        const val PLAYING_WAIT_MS = 3_000
 
         /** A pause older than this is not this conversation's. */
         const val KEEP_PAUSED_MS = 2 * 60 * 1000L
@@ -53,7 +59,7 @@ class MediaControls(private val context: Context) {
     private val listenerComponent: ComponentName
         get() = ComponentName(context, FridayNotificationListener::class.java)
 
-    fun perform(action: MediaAction, appHint: String?, russian: Boolean = true): String {
+    suspend fun perform(action: MediaAction, appHint: String?, russian: Boolean = true): String {
         fun say(ru: String, en: String) = if (russian) ru else en
         val wanted = appHint?.let { MusicApps.match(it) }
 
@@ -70,7 +76,7 @@ class MediaControls(private val context: Context) {
             return when {
                 // Asked for a specific app that isn't running: start it, since
                 // "включи Spotify" plainly means "get Spotify going".
-                wanted != null && action.startsPlayback -> launch(wanted, russian)
+                wanted != null && action.startsPlayback -> start(wanted, russian)
                 action.startsPlayback -> fallbackKey(action, russian)
                 else -> say("Сейчас ничего не играет", "Nothing is playing")
             }
@@ -153,16 +159,45 @@ class MediaControls(private val context: Context) {
     private fun isPlaying(controller: MediaController): Boolean =
         controller.playbackState?.state == PlaybackState.STATE_PLAYING
 
-    private fun launch(player: MusicApps.Player, russian: Boolean): String {
-        val missing = if (russian) "${player.label} не установлен" else "${player.label} isn't installed"
-        return try {
-            val intent = context.packageManager.getLaunchIntentForPackage(player.packageName) ?: return missing
-            context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-            if (russian) "Открываю ${player.label}" else "Opening ${player.label}"
+    /**
+     * Starts a player that isn't running, and makes it play.
+     *
+     * Opening it isn't enough: a closed player has no session yet, so there
+     * was nothing to press play on and the music never started. It is now
+     * started with a play request (`MEDIA_PLAY_FROM_SEARCH` with an empty
+     * query, which Android defines as "play something"); once its session
+     * appears, play is pressed if it is still paused, and the reply reports
+     * what the session says, not what was hoped.
+     */
+    private suspend fun start(player: MusicApps.Player, russian: Boolean): String {
+        val pm = context.packageManager
+        val playRequest = Intent(MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH)
+            .setPackage(player.packageName)
+            .putExtra(SearchManager.QUERY, "")
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        val intent = playRequest.takeIf { it.resolveActivity(pm) != null }
+            ?: pm.getLaunchIntentForPackage(player.packageName)?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            ?: return PlayerStart.reply(PlayerStart.Outcome.NOT_INSTALLED, player.label, russian)
+        try {
+            context.startActivity(intent)
         } catch (e: Exception) {
-            Log.e(TAG, "Launch ${player.packageName} failed: ${e.message}")
-            missing
+            Log.e(TAG, "Start ${player.packageName} failed: ${e.message}")
+            return PlayerStart.reply(PlayerStart.Outcome.NOT_INSTALLED, player.label, russian)
         }
+        pausedByUser = null
+        // A cold-started player needs a few seconds to publish its session.
+        val session = pollFor(SESSION_WAIT_MS) {
+            activeSessions()?.firstOrNull { it.packageName == player.packageName }
+        }
+        val outcome = when {
+            session == null -> PlayerStart.Outcome.OPENED_UNVERIFIED
+            else -> {
+                if (!isPlaying(session)) session.transportControls.play()
+                val playing = pollFor(PLAYING_WAIT_MS) { session.takeIf(::isPlaying) } != null
+                if (playing) PlayerStart.Outcome.PLAYING else PlayerStart.Outcome.OPENED_NOT_PLAYING
+            }
+        }
+        return PlayerStart.reply(outcome, player.label, russian)
     }
 
     /**
@@ -197,4 +232,15 @@ class MediaControls(private val context: Context) {
     } catch (_: Exception) {
         if (russian) "Нужен доступ к уведомлениям" else "I need notification access"
     }
+}
+
+private const val POLL_MS = 250
+
+/** Asks [probe] every quarter second until it answers or [totalMs] pass. */
+private suspend fun <T : Any> pollFor(totalMs: Int, probe: () -> T?): T? {
+    repeat(totalMs / POLL_MS) {
+        probe()?.let { return it }
+        delay(POLL_MS.toLong())
+    }
+    return probe()
 }
