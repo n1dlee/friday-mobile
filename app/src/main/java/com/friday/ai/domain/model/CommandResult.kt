@@ -33,6 +33,11 @@ sealed interface CommandResult {
         data object ListAll : Mode
         /** "Отмена" right after creating one: the mode just made is removed. */
         data class CancelCreated(val id: String) : Mode
+        /**
+         * "Нет, включи lo-fi" right after a mode ran: [instead] is carried out,
+         * then Friday offers to keep it in the mode.
+         */
+        data class Correct(val id: String, val instead: String) : Mode
     }
 
     data class OpenApp(val appName: String, val packageHint: String?) : Phone

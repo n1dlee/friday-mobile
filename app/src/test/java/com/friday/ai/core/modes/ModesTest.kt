@@ -154,7 +154,7 @@ class ModeEngineTest {
 
     private suspend fun say(text: String): String? {
         val request = engine.route(text) ?: return null
-        return engine.handle(request, russian = true, runner)
+        return engine.handle(request, russian = true, runner = runner)
     }
 
     private suspend fun createRest() {
@@ -221,7 +221,7 @@ class ModeEngineTest {
         compiled["включается spotify с грустными песнями"] = ModeCompiler.Result.Steps(sad, emptyList())
         say("Создай режим грусти. Это режим, где включается Spotify с грустными песнями.")
         val failing: suspend (CommandResult) -> String = { "Не получилось: нет сети" }
-        val reply = engine.handle(CommandResult.Mode.Run("грусти"), russian = true, failing)
+        val reply = engine.handle(CommandResult.Mode.Run("грусти"), russian = true, runner = failing)
         assertTrue(reply.contains("Не получилось"))
         assertTrue("nothing started, nothing to pause", store.all().single().undo!!.isEmpty())
     }
@@ -279,6 +279,48 @@ class ModeEngineTest {
         assertTrue(reply.startsWith("Обновила режим отдыха"))
         assertEquals(1, store.all().size)
         assertEquals(1, store.all().single().steps.size)
+    }
+
+    private val router = com.friday.ai.core.CommandRouter()
+
+    private suspend fun sayRouted(text: String): String? {
+        engine.answerPending(text, russian = true)?.let { return it }
+        val request = engine.route(text) ?: return null
+        return engine.handle(request, russian = true, router = { router.route(it) }, runner = runner)
+    }
+
+    @Test
+    fun `a correction right after a run is done, then offered to the mode`() = runTest {
+        compiled["включается spotify с грустными песнями"] = ModeCompiler.Result.Steps(sad, emptyList())
+        sayRouted("Создай режим грусти. Это режим, где включается Spotify с грустными песнями.")
+        sayRouted("режим грусти")
+        val reply = sayRouted("нет, включи lofi в spotify")!!
+        assertTrue(reply, reply.endsWith("Запомнить это для режима грусти вместо «включу «грустные песни» в Spotify»?"))
+        assertTrue(ran.last() is CommandResult.PlayMedia)
+
+        val yes = sayRouted("да")!!
+        assertTrue(yes, yes.startsWith("Запомнила."))
+        val step = store.all().single().steps.single()
+        assertEquals("lofi", (step.args["query"] as kotlinx.serialization.json.JsonPrimitive).content)
+    }
+
+    @Test
+    fun `a correction of another kind is offered as a new step, and no keeps the mode`() = runTest {
+        compiled["включается spotify с грустными песнями"] = ModeCompiler.Result.Steps(sad, emptyList())
+        sayRouted("Создай режим грусти. Это режим, где включается Spotify с грустными песнями.")
+        sayRouted("режим грусти")
+        assertTrue(sayRouted("нет, включи не беспокоить")!!.endsWith("Добавить это в режим грусти?"))
+        assertTrue(phone.dndState)
+        assertEquals("Хорошо, режим остаётся как был.", sayRouted("нет"))
+        assertEquals(1, store.all().single().steps.size)
+    }
+
+    @Test
+    fun `no is not a correction long after the run`() = runTest {
+        createRest()
+        sayRouted("режим отдыха")
+        clock += 10 * 60 * 1000
+        assertNull(engine.route("нет, включи lofi"))
     }
 
     @Test

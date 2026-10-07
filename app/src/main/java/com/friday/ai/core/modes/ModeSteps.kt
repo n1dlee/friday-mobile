@@ -117,6 +117,32 @@ object ModeSteps {
         }
     }
 
+    /**
+     * The step that would do [command] again, for the commands a correction
+     * can put into a mode; null for the rest.
+     */
+    fun envelopeOf(command: com.friday.ai.domain.model.CommandResult): ActionEnvelope? = when (command) {
+        is com.friday.ai.domain.model.CommandResult.PlayMedia -> envelope("play") {
+            put("query", command.query)
+            put("kind", command.kind.name.lowercase())
+            command.appHint?.let { put("app", it) }
+        }
+        is com.friday.ai.domain.model.CommandResult.DeviceControl -> deviceEnvelope(command.action, command.level)
+        is com.friday.ai.domain.model.CommandResult.MediaControl ->
+            envelope("media") { put("action", command.action.name.lowercase()) }
+        is com.friday.ai.domain.model.CommandResult.Flashlight ->
+            envelope("flashlight") { put("state", if (command.on) "on" else "off") }
+        is com.friday.ai.domain.model.CommandResult.OpenApp -> envelope("open_app") { put("name", command.appName) }
+        else -> null
+    }
+
+    /** Whether [b] does the same kind of thing as [a], so a correction replaces rather than adds. */
+    fun sameKind(a: ActionEnvelope, b: ActionEnvelope): Boolean {
+        if (a.tool != b.tool) return false
+        if (a.tool != "phone_control") return true
+        return (a.args["target"] as? JsonPrimitive)?.contentOrNull == (b.args["target"] as? JsonPrimitive)?.contentOrNull
+    }
+
     /** The phone_control v2 envelope for a device action, as stored in a mode's undo list. */
     @Suppress("CyclomaticComplexMethod") // a mapping table
     fun deviceEnvelope(action: DeviceAction, level: Int?): ActionEnvelope {

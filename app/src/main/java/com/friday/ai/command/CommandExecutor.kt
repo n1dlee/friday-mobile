@@ -89,7 +89,9 @@ class CommandExecutor(
      * be asked before [route]: "нет" to a draft is not a request.
      */
     suspend fun answerPending(text: String, russian: Boolean): String? =
-        mail.answerPending(text, russian) ?: messages?.answerPending(text, russian)
+        modes?.answerPending(text, russian)
+            ?: mail.answerPending(text, russian)
+            ?: messages?.answerPending(text, russian)
 
     /**
      * Runs [command]. Never throws for an ordinary failure — it becomes a
@@ -133,7 +135,9 @@ class CommandExecutor(
                 is CommandResult.AnalyzeFile -> Outcome.NeedsFile(command.fileHint)
                 is CommandResult.Sequence -> inOrder(command.steps, russian)
                 is CommandResult.Mode -> Outcome.Reply(
-                    modes?.handle(command, russian) { step -> replyOf(single(step, russian), russian) }
+                    modes?.handle(command, russian, router = { router.route(it) }) { step ->
+                        replyOf(single(step, russian), russian)
+                    }
                         ?: if (russian) "Режимы недоступны." else "Modes aren't available."
                 )
             }

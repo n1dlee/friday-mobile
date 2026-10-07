@@ -40,12 +40,27 @@ class ModeEngine(
     @Volatile
     private var lastCreated: Pair<String, Long>? = null
 
+    /** The mode that just ran, for "нет, включи другое". */
+    @Volatile
+    private var lastRun: Pair<String, Long>? = null
+
+    /** A correction waiting for "да": put [step] into the mode, in place of [replaces] if set. */
+    private data class Proposal(val modeId: String, val step: ActionEnvelope, val replaces: Int?, val at: Long)
+
+    @Volatile
+    private var proposal: Proposal? = null
+
+    private val correctionLead = Regex(
+        "^(?:нет|не то|не так|неправильно|не это|я не это|no|not that|wrong)[,.!\\s]+(?:а\\s+|лучше\\s+|instead\\s+)?"
+    )
+
     /**
      * The mode request in [text], or null. Run, exit and describe only count
      * when the name is one of the owner's modes: "включи режим полёта" is a
      * system setting, not a mode Friday doesn't have.
      */
     fun route(text: String): CommandResult.Mode? {
+        correction(text)?.let { return it }
         lastCreated?.let { (id, at) ->
             if (clock() - at <= UNDO_WINDOW_MS && LearnedCommands.isCorrection(text)) {
                 lastCreated = null
@@ -60,10 +75,45 @@ class ModeEngine(
         }
     }
 
-    /** Carries out [request]; [runner] runs one ordinary command and returns its reply. */
+    /** "Нет, включи lo-fi" within the window after a run: the part after "нет" is the wish. */
+    private fun correction(text: String): CommandResult.Mode.Correct? {
+        val (id, at) = lastRun ?: return null
+        if (clock() - at > UNDO_WINDOW_MS) return null
+        val lower = text.trim().lowercase().replace('ё', 'е')
+        val lead = correctionLead.find(lower) ?: return null
+        val instead = text.trim().substring(lead.range.last + 1).trim()
+        return CommandResult.Mode.Correct(id, instead).takeIf { instead.split(' ').size >= 2 }
+    }
+
+    /** "Да" / "нет" to "запомнить это для режима …?"; null when nothing is asked or it isn't an answer. */
+    suspend fun answerPending(text: String, russian: Boolean): String? {
+        val p = proposal?.takeIf { clock() - it.at <= UNDO_WINDOW_MS } ?: return null
+        val say = Say(russian)
+        return when (com.friday.ai.core.mail.Confirmation.classify(text)) {
+            com.friday.ai.core.mail.Confirmation.Answer.OTHER -> null
+            com.friday.ai.core.mail.Confirmation.Answer.NO -> {
+                proposal = null
+                say("Хорошо, режим остаётся как был.", "OK, the mode stays as it was.")
+            }
+            com.friday.ai.core.mail.Confirmation.Answer.YES -> {
+                proposal = null
+                val mode = store.byId(p.modeId) ?: return say("Этого режима уже нет.", "That mode is gone.")
+                val steps = mode.steps.toMutableList()
+                if (p.replaces != null && p.replaces in steps.indices) steps[p.replaces] = p.step else steps += p.step
+                store.put(mode.copy(steps = steps))
+                say(
+                    "Запомнила. Режим ${mode.name}: ${ModeSteps.summary(steps, russian)}.",
+                    "Got it. ${mode.name} mode: ${ModeSteps.summary(steps, russian)}."
+                )
+            }
+        }
+    }
+
+    /** Carries out [request]; [runner] runs one ordinary command, [router] reads a phrase into one. */
     suspend fun handle(
         request: CommandResult.Mode,
         russian: Boolean,
+        router: (String) -> CommandResult = { CommandResult.ChatMessage(it) },
         runner: suspend (CommandResult) -> String
     ): String {
         val say = Say(russian)
@@ -74,6 +124,7 @@ class ModeEngine(
             is CommandResult.Mode.Describe -> store.find(request.name)?.let { describe(it, say) } ?: missing(request.name, say)
             is CommandResult.Mode.Delete -> store.find(request.name)?.let { delete(it, say) } ?: missing(request.name, say)
             is CommandResult.Mode.CancelCreated -> cancel(request.id, say)
+            is CommandResult.Mode.Correct -> correct(request, say, router, runner)
             CommandResult.Mode.ListAll -> list(say)
         }
     }
@@ -114,11 +165,57 @@ class ModeEngine(
 
     private suspend fun run(mode: Mode, say: Say, runner: suspend (CommandResult) -> String): String {
         val (messages, undo) = carryOut(mode.steps, say, runner)
+        lastRun = mode.id to clock()
         // Already on: the phone's state from before the first run is what "выключи" must restore.
         store.put(
             mode.copy(undo = mode.undo ?: undo, lastRunAt = clock(), runCount = mode.runCount + 1)
         )
         return say("Режим ${mode.name}. ", "${mode.name} mode. ") + sentences(messages)
+    }
+
+    /**
+     * Does what the owner asked instead, then offers to keep it: in place of
+     * the step of the same kind ("lo-fi" instead of "грустные песни"), or as
+     * a new step.
+     */
+    private suspend fun correct(
+        request: CommandResult.Mode.Correct,
+        say: Say,
+        router: (String) -> CommandResult,
+        runner: suspend (CommandResult) -> String
+    ): String {
+        lastRun = null
+        val mode = store.byId(request.id) ?: return say("Этого режима уже нет.", "That mode is gone.")
+        val command = router(request.instead)
+        if (command is CommandResult.ChatMessage || command is CommandResult.Mode) {
+            return say(
+                "Скажите, что сделать вместо этого, например «нет, включи lo-fi».",
+                "Tell me what to do instead, e.g. \"no, play lo-fi\"."
+            )
+        }
+        val reply = when (command) {
+            is CommandResult.DeviceControl -> device.apply(command.action, command.level, say.russian).message
+            else -> runner(command)
+        }
+        return offer(mode, command, reply, say)
+    }
+
+    /** After a correction was carried out: the question whether to keep it in [mode]. */
+    private fun offer(mode: Mode, command: CommandResult, reply: String, say: Say): String {
+        val step = ModeSteps.envelopeOf(command)
+        if (step == null || CommandExecutor.isFailure(reply)) return reply
+        val replaces = mode.steps.indexOfFirst { ModeSteps.sameKind(it, step) }.takeIf { it >= 0 }
+        proposal = Proposal(mode.id, step, replaces, clock())
+        val question = if (replaces != null) {
+            val old = ModeSteps.describe(mode.steps[replaces], say.russian)
+            say(
+                " Запомнить это для режима ${mode.name} вместо «$old»?",
+                " Keep this in ${mode.name} mode instead of \"$old\"?"
+            )
+        } else {
+            say(" Добавить это в режим ${mode.name}?", " Add this to ${mode.name} mode?")
+        }
+        return reply.trim().let { if (it.last() in ".!?…") it else "$it." } + question
     }
 
     private suspend fun exit(mode: Mode, say: Say, runner: suspend (CommandResult) -> String): String {
