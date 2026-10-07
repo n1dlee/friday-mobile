@@ -12,11 +12,11 @@ package com.friday.ai.core.capabilities
 object Diagnostics {
 
     enum class Group(val title: String) {
-        ESSENTIALS("Essentials"),
-        VOICE("Voice"),
-        PHONE("Phone & people"),
-        INTEGRATIONS("Integrations"),
-        DEVICE("This device")
+        ESSENTIALS("Основное"),
+        VOICE("Голос"),
+        PHONE("Телефон и люди"),
+        INTEGRATIONS("Сервисы"),
+        DEVICE("Это устройство")
     }
 
     enum class Status {
@@ -79,75 +79,75 @@ object Diagnostics {
     }
 
     private fun essentials(c: FridayCapabilities) = listOf(
-        Check("groq", "Groq API key", "Set", "Not set: Friday can't understand speech or answer", Fix.FRIDAY_SETTINGS)
+        Check("groq", "Ключ Groq API", "Задан", "Не задан: Пятница не понимает речь и не отвечает", Fix.FRIDAY_SETTINGS)
             .row(Group.ESSENTIALS, c.integrations.groqKey),
-        Check("microphone", "Microphone", "Allowed", "Not allowed: Friday can't hear you", Fix.MICROPHONE)
+        Check("microphone", "Микрофон", "Разрешён", "Запрещён: Пятница вас не слышит", Fix.MICROPHONE)
             .row(Group.ESSENTIALS, c.permissions.microphone),
         Check(
-            "overlay", "Display over other apps", "Allowed",
-            "Not allowed: the listening panel can't appear", Fix.OVERLAY
+            "overlay", "Поверх других приложений", "Разрешено",
+            "Запрещено: панель ассистента не может появиться", Fix.OVERLAY
         ).row(Group.ESSENTIALS, c.permissions.overlay),
         Check(
-            "post_notifications", "Notifications", "Allowed",
-            "Not allowed: Android may refuse to keep the listener running", Fix.POST_NOTIFICATIONS
+            "post_notifications", "Уведомления", "Разрешены",
+            "Запрещены: Android может не дать слушать в фоне", Fix.POST_NOTIFICATIONS
         ).row(Group.ESSENTIALS, c.permissions.postNotifications)
     )
 
     private fun voice(c: FridayCapabilities): List<Row> {
         val v = c.voice
         val wakeWord = Check(
-            "wake_word", "Wake word \"Friday\"", "On",
-            "Off: Friday only listens when you open the app", Fix.FRIDAY_SETTINGS, optional = true
+            "wake_word", "Слово «Пятница»", "Включено",
+            "Выключено: Пятница слушает, только когда открыто приложение", Fix.FRIDAY_SETTINGS, optional = true
         ).row(Group.VOICE, v.wakeWordEnabled)
         if (!v.wakeWordEnabled) return listOf(wakeWord)
         return listOf(
             wakeWord,
             Check(
-                "wake_model", "Wake-word model", "Downloaded",
-                "Not downloaded: the wake word can't work", Fix.FRIDAY_SETTINGS
+                "wake_model", "Модель слова", "Скачана",
+                "Не скачана: слово не может работать", Fix.FRIDAY_SETTINGS
             ).row(Group.VOICE, v.wakeModelReady),
             Check(
-                "listening", "Listening in the background", "Running",
-                "Stopped: saying \"Friday\" does nothing right now", Fix.FRIDAY_SETTINGS
+                "listening", "Слушает в фоне", "Работает",
+                "Остановлено: «Пятница» сейчас ничего не делает", Fix.FRIDAY_SETTINGS
             ).row(Group.VOICE, v.listening),
             Check(
-                "battery", "Battery restrictions", "Unrestricted",
-                "Restricted: Android may put the listener to sleep", Fix.BATTERY
+                "battery", "Ограничения батареи", "Нет",
+                "Есть: Android может усыпить прослушивание", Fix.BATTERY
             ).row(Group.VOICE, c.permissions.batteryExempt),
             Check(
-                "voice_profile", "Voice profile", "Recorded: only your voice is obeyed",
-                "Not recorded: any voice can give Friday commands", Fix.FRIDAY_SETTINGS
+                "voice_profile", "Голосовой профиль", "Записан: слушается только ваш голос",
+                "Не записан: командовать может любой голос", Fix.FRIDAY_SETTINGS
             ).row(Group.VOICE, v.voiceProfile)
         )
     }
 
     private fun phone(c: FridayCapabilities) = listOf(
         Check(
-            "notification_access", "Notification access", "On",
-            "Off: no reading or replying to chats, no music control, no call announcements",
+            "notification_access", "Доступ к уведомлениям", "Включён",
+            "Выключен: нет чтения и ответов в чатах, управления музыкой, объявления звонков",
             Fix.NOTIFICATION_ACCESS
         ).row(Group.PHONE, c.permissions.notificationListener),
         Check(
-            "contacts", "Contacts", "Allowed",
-            "Not allowed: \"call mum\" and \"text dad\" can't find anyone", Fix.CONTACTS
+            "contacts", "Контакты", "Разрешены",
+            "Запрещены: «позвони маме» и «напиши папе» никого не найдут", Fix.CONTACTS
         ).row(Group.PHONE, c.permissions.contacts),
         Check(
-            "phone", "Phone calls", "Allowed: calls start directly",
-            "Not allowed: calls only open the dialer", Fix.PHONE, optional = true
+            "phone", "Звонки", "Разрешены: звонок начинается сразу",
+            "Запрещены: звонок только открывает набор номера", Fix.PHONE, optional = true
         ).row(Group.PHONE, c.permissions.phone),
         Check(
-            "calendar", "Calendar", "Allowed",
-            "Not allowed: events open the calendar to save by hand; moving them doesn't work", Fix.CALENDAR
+            "calendar", "Календарь", "Разрешён",
+            "Запрещён: событие придётся сохранять вручную, перенос не работает", Fix.CALENDAR
         ).row(Group.PHONE, c.permissions.calendar),
         Check(
-            "location", "Location", "Allowed",
-            "Not allowed: no weather \"here\", no reminders near shops", Fix.LOCATION
+            "location", "Геопозиция", "Разрешена",
+            "Запрещена: нет погоды «здесь» и напоминаний у магазинов", Fix.LOCATION
         ).row(Group.PHONE, c.permissions.location)
     )
 
     private fun integrations(c: FridayCapabilities) = listOf(
         Check(
-            "gmail", "Gmail", "Connected", "Not connected: mail commands are off",
+            "gmail", "Gmail", "Подключён", "Не подключён: почтовые команды выключены",
             Fix.FRIDAY_SETTINGS, optional = true
         ).row(Group.INTEGRATIONS, c.integrations.gmail)
         // Lazuri is deferred: Friday lives on one phone, and moves with settings export.
@@ -156,17 +156,21 @@ object Diagnostics {
     private fun device(c: FridayCapabilities): List<Row> {
         val d = c.device
         fun info(id: String, title: String, detail: String) = Row(id, Group.DEVICE, title, Status.INFO, detail)
-        fun yesNo(on: Boolean) = if (on) "Yes" else "No"
+        fun yesNo(on: Boolean) = if (on) "Есть" else "Нет"
         return listOf(
-            info("model", "Device", "${d.manufacturer} ${d.model} · Android API ${d.sdk}".trim()),
-            info("assistant", "Default digital assistant", if (c.assistant.active) "Friday" else "Another app"),
+            info("model", "Устройство", "${d.manufacturer} ${d.model} · Android API ${d.sdk}".trim()),
+            info(
+                "assistant", "Цифровой ассистент",
+                if (c.assistant.active) "Пятница" else "Другое приложение"
+            ),
             info("nfc", "NFC", yesNo(d.nfc)),
             info("uwb", "UWB", yesNo(d.uwb)),
-            info("stylus", "Stylus", yesNo(d.stylus)),
-            info("external_display", "External display", if (d.externalDisplay) "Connected" else "None"),
+            info("stylus", "Стилус", yesNo(d.stylus)),
+            info("external_display", "Внешний экран", if (d.externalDisplay) "Подключён" else "Нет"),
             info(
                 "shizuku", "Shizuku",
-                if (c.privileged.shizukuInstalled) "Installed (not used yet)" else "Not installed (optional)"
+                if (c.privileged.shizukuInstalled) "Установлен (пока не используется)"
+                else "Не установлен (необязательно)"
             )
         )
     }

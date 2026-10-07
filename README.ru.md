@@ -36,6 +36,12 @@ Friday — персональный голосовой ассистент для
 > [!NOTE]
 > Friday — личный проект в стадии **preview**. Нужен бесплатный [ключ Groq API](https://console.groq.com/keys) и 64-битный телефон на Android 8.0+. Интерфейс и голос настроены на **русский и английский**.
 
+<div align="center">
+<img src="docs/assets/screens/chat_standby.png" alt="Ожидание: арк-реактор и подсказки" width="30%">&nbsp;
+<img src="docs/assets/screens/chat_conversation.png" alt="Разговор" width="30%">&nbsp;
+<img src="docs/assets/screens/panels.png" alt="Панели настроек" width="30%">
+</div>
+
 ## ✨ Возможности
 
 <table>

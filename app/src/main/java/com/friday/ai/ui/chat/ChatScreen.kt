@@ -5,14 +5,22 @@ import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
@@ -20,44 +28,60 @@ import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.DrawerValue
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
-import androidx.compose.material3.rememberDrawerState
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Snackbar
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.friday.ai.domain.model.AssistantMode
+import com.friday.ai.domain.model.ChatUiState
 import com.friday.ai.ui.chat.components.ChatInputBar
 import com.friday.ai.ui.chat.components.MessageBubble
 import com.friday.ai.ui.chat.components.ModeSelector
+import com.friday.ai.ui.chat.components.ReactorHero
 import com.friday.ai.ui.chat.components.SessionDrawer
+import com.friday.ai.ui.chat.components.label
+import com.friday.ai.ui.overlay.ArcReactorView
+import com.friday.ai.ui.theme.ArcAmber
+import com.friday.ai.ui.theme.ArcCyan
+import com.friday.ai.ui.theme.BackgroundDark
+import com.friday.ai.ui.theme.ErrorColor
+import com.friday.ai.ui.theme.HudBackground
+import com.friday.ai.ui.theme.HudLabelStyle
+import com.friday.ai.ui.theme.HudScanLine
+import com.friday.ai.ui.theme.HudStatus
+import com.friday.ai.ui.theme.HudTopBar
+import com.friday.ai.ui.theme.OnBackground
+import com.friday.ai.ui.theme.OnSurfaceMuted
+import com.friday.ai.ui.theme.hudFrame
+import java.util.Calendar
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(
     onNavigateToSettings: () -> Unit,
@@ -104,10 +128,22 @@ fun ChatScreen(
         }
     }
 
+    val onMic = {
+        val hasPermission = ContextCompat.checkSelfPermission(
+            context, Manifest.permission.RECORD_AUDIO
+        ) == PackageManager.PERMISSION_GRANTED
+        if (hasPermission) viewModel.onMicClick()
+        else micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+    }
+    val ask = { text: String ->
+        viewModel.onInputChange(text)
+        viewModel.onSend()
+    }
+
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
-            ModalDrawerSheet {
+            ModalDrawerSheet(drawerContainerColor = BackgroundDark) {
                 SessionDrawer(
                     sessions = sessions,
                     currentSessionId = currentSessionId,
@@ -124,135 +160,191 @@ fun ChatScreen(
             }
         }
     ) {
-    Scaffold(
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Friday AI", fontWeight = FontWeight.Bold)
-                        Text(
-                            "${uiState.currentMode.emoji} ${uiState.currentMode.displayName}",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                        Icon(Icons.Filled.Menu, contentDescription = "Conversation history")
-                    }
-                },
-                actions = {
-                    IconButton(onClick = onNavigateToSettings) {
-                        Icon(Icons.Filled.Settings, contentDescription = "Settings")
-                    }
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                )
-            )
-        },
-        containerColor = MaterialTheme.colorScheme.background
-    ) { padding ->
+        ChatLayout(
+            state = uiState,
+            inputText = inputText,
+            listState = listState,
+            onMenu = { scope.launch { drawerState.open() } },
+            onSettings = onNavigateToSettings,
+            onMode = viewModel::onModeChange,
+            onInput = viewModel::onInputChange,
+            onSend = viewModel::onSend,
+            onMic = onMic,
+            onSuggestion = ask,
+            onDismissError = viewModel::onDismissError
+        )
+    }
+}
+
+/** The chat itself, without its view model: what the screenshot test renders. */
+@Composable
+internal fun ChatLayout(
+    state: ChatUiState,
+    inputText: String,
+    listState: LazyListState,
+    onMenu: () -> Unit,
+    onSettings: () -> Unit,
+    onMode: (AssistantMode) -> Unit,
+    onInput: (String) -> Unit,
+    onSend: () -> Unit,
+    onMic: () -> Unit,
+    onSuggestion: (String) -> Unit,
+    onDismissError: () -> Unit
+) {
+    HudBackground {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                // Only the top inset comes from the Scaffold. The bottom is
-                // the *larger* of the keyboard and the navigation bar, not
-                // their sum — adding both left a dead gap above the keyboard.
-                .padding(top = padding.calculateTopPadding())
+                // The bottom is the *larger* of the keyboard and the
+                // navigation bar, not their sum — adding both left a dead
+                // gap above the keyboard.
                 .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
         ) {
-            // Mode selector
-            ModeSelector(
-                currentMode = uiState.currentMode,
-                onModeSelected = viewModel::onModeChange,
-                modifier = Modifier.padding(vertical = 4.dp)
+            HudTopBar(
+                title = "F.R.I.D.A.Y.",
+                status = status(state),
+                navigation = {
+                    IconButton(onClick = onMenu) {
+                        Icon(Icons.Filled.Menu, contentDescription = "Журнал разговоров", tint = OnBackground)
+                    }
+                },
+                actions = {
+                    IconButton(onClick = onSettings) {
+                        Icon(Icons.Filled.Settings, contentDescription = "Настройки", tint = OnBackground)
+                    }
+                }
             )
 
-            // Loading indicator
-            AnimatedVisibility(visible = uiState.isLoading) {
-                LinearProgressIndicator(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
+            AnimatedVisibility(visible = state.isLoading) { HudScanLine() }
 
-            // Messages list
-            LazyColumn(
-                modifier = Modifier.weight(1f),
-                state = listState,
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-            ) {
-                items(uiState.messages, key = { it.id }) { message ->
-                    MessageBubble(
-                        message = message,
-                        modifier = Modifier.padding(vertical = 4.dp)
-                    )
-                }
+            ModeSelector(
+                currentMode = state.currentMode,
+                onModeSelected = onMode,
+                modifier = Modifier.padding(vertical = 8.dp)
+            )
 
-                if (uiState.messages.isEmpty()) {
-                    item {
-                        Box(
-                            modifier = Modifier.fillParentMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(
-                                    "Friday AI",
-                                    style = MaterialTheme.typography.headlineLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    "Your personal AI assistant",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    "Say \"Friday\" or type a message",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
-                                )
-                            }
-                        }
+            Box(Modifier.weight(1f)) {
+                if (state.messages.isEmpty()) {
+                    Standby(state, onSuggestion = onSuggestion)
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        state = listState,
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        items(state.messages, key = { it.id }) { message -> MessageBubble(message) }
                     }
                 }
             }
 
-            // Error snackbar
-            uiState.error?.let { error ->
-                Snackbar(
-                    modifier = Modifier.padding(12.dp),
-                    action = {
-                        TextButton(onClick = { viewModel.onDismissError() }) {
-                            Text("Dismiss")
-                        }
-                    }
-                ) {
-                    Text(error)
-                }
-            }
+            state.error?.let { error -> ErrorStrip(error, onDismiss = onDismissError) }
 
-            // Input bar
             ChatInputBar(
                 text = inputText,
-                onTextChange = viewModel::onInputChange,
-                onSend = viewModel::onSend,
-                onMicClick = {
-                    val hasPermission = ContextCompat.checkSelfPermission(
-                        context, Manifest.permission.RECORD_AUDIO
-                    ) == PackageManager.PERMISSION_GRANTED
-
-                    if (hasPermission) viewModel.onMicClick()
-                    else micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                },
-                isLoading = uiState.isLoading,
-                isListening = uiState.isVoiceListening
+                onTextChange = onInput,
+                onSend = onSend,
+                onMicClick = onMic,
+                isLoading = state.isLoading,
+                isListening = state.isVoiceListening
             )
         }
     }
+}
+
+private fun status(state: ChatUiState): HudStatus = when {
+    state.isVoiceListening -> HudStatus("Слушаю", ArcCyan, live = true)
+    state.isLoading -> HudStatus("Обрабатываю", ArcAmber, live = true)
+    state.currentMode != AssistantMode.DEFAULT -> HudStatus("На связи · ${state.currentMode.label}")
+    else -> HudStatus("На связи")
+}
+
+/** Nothing said yet: the reactor, a greeting, and a few things to try. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun Standby(state: ChatUiState, onSuggestion: (String) -> Unit) {
+    val greeting = remember { greeting(Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) }
+    val mood = when {
+        state.isVoiceListening -> ArcReactorView.Mood.LISTENING
+        state.isLoading -> ArcReactorView.Mood.THINKING
+        else -> ArcReactorView.Mood.IDLE
     }
+    Column(
+        Modifier.fillMaxSize().padding(horizontal = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        ReactorHero(mood)
+        Spacer(Modifier.height(20.dp))
+        Text(
+            greeting,
+            style = MaterialTheme.typography.headlineMedium,
+            color = OnBackground,
+            textAlign = TextAlign.Center
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "Скажите «Пятница» — или напишите ниже",
+            style = MaterialTheme.typography.bodyMedium,
+            color = OnSurfaceMuted,
+            textAlign = TextAlign.Center
+        )
+        Spacer(Modifier.height(20.dp))
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            SUGGESTIONS.forEach { Suggestion(it, onClick = { onSuggestion(it) }) }
+        }
+    }
+}
+
+@Composable
+private fun Suggestion(text: String, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(10.dp)
+    Text(
+        text,
+        style = MaterialTheme.typography.bodyMedium,
+        color = OnBackground,
+        modifier = Modifier
+            .heightIn(min = 40.dp)
+            .clip(shape)
+            .background(ArcCyan.copy(alpha = 0.05f))
+            .border(1.dp, ArcCyan.copy(alpha = 0.2f), shape)
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 10.dp)
+    )
+}
+
+@Composable
+private fun ErrorStrip(error: String, onDismiss: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 4.dp)
+            .hudFrame(accent = ErrorColor)
+            .padding(start = 14.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f).padding(vertical = 6.dp)) {
+            Text("СБОЙ", style = HudLabelStyle, color = ErrorColor)
+            Text(error, style = MaterialTheme.typography.bodyMedium, color = OnBackground)
+        }
+        TextButton(onClick = onDismiss) { Text("Скрыть", color = ErrorColor) }
+    }
+}
+
+private val SUGGESTIONS = listOf(
+    "Какая погода сегодня?",
+    "Прочитай новые сообщения",
+    "Включи музыку",
+    "Поставь будильник на 7:00",
+    "Что нового в мире?"
+)
+
+private fun greeting(hour: Int): String = when (hour) {
+    in 5..11 -> "Доброе утро, сэр"
+    in 12..17 -> "Добрый день, сэр"
+    in 18..22 -> "Добрый вечер, сэр"
+    else -> "Доброй ночи, сэр"
 }

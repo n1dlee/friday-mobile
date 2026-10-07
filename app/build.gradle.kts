@@ -102,6 +102,13 @@ android {
             // android.util.Log is a stub that throws in unit tests; returning
             // defaults lets pure logic that happens to log be tested directly.
             isReturnDefaultValues = true
+            // Robolectric screenshot tests need the merged resources.
+            isIncludeAndroidResources = true
+            all {
+                // Screenshots render only on request: ./gradlew testDebugUnitTest -Pscreenshots
+                it.systemProperty("screenshots", project.hasProperty("screenshots").toString())
+                it.systemProperty("screenshotDir", "${rootDir}/build/screenshots")
+            }
         }
     }
 }
@@ -180,6 +187,10 @@ dependencies {
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
     testImplementation("app.cash.turbine:turbine:1.2.0")
     testImplementation("androidx.room:room-testing:2.6.1")
+    // Renders Compose screens on the JVM (native graphics) for visual checks without a device.
+    testImplementation(composeBom)
+    testImplementation("androidx.compose.ui:ui-test-junit4")
+    testImplementation("org.robolectric:robolectric:4.14.1")
 
     // Android Instrumented Tests
     androidTestImplementation("androidx.test.ext:junit:1.2.1")

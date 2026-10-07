@@ -1,7 +1,7 @@
 package com.friday.ai.ui.settings
 
-import com.friday.ai.core.VoiceProfile
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -10,44 +10,37 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MonitorHeart
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.Button
-import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import com.friday.ai.service.FridayNotificationListener
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -57,17 +50,36 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.friday.ai.core.VoiceProfile
+import com.friday.ai.service.FridayNotificationListener
 import com.friday.ai.service.VoiceCalibrator
 import com.friday.ai.service.VoskModelManager
+import com.friday.ai.ui.theme.ArcCyan
+import com.friday.ai.ui.theme.ErrorColor
+import com.friday.ai.ui.theme.HudBackground
+import com.friday.ai.ui.theme.HudButton
+import com.friday.ai.ui.theme.HudLabelStyle
+import com.friday.ai.ui.theme.HudNote
+import com.friday.ai.ui.theme.HudOutlinedButton
+import com.friday.ai.ui.theme.HudPanel
+import com.friday.ai.ui.theme.HudReadout
+import com.friday.ai.ui.theme.HudStatus
+import com.friday.ai.ui.theme.HudSwitchRow
+import com.friday.ai.ui.theme.HudTopBar
+import com.friday.ai.ui.theme.OnBackground
+import com.friday.ai.ui.theme.hudFieldColors
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * Friday's settings as a stack of numbered HUD panels, one per system:
+ * intelligence, voice, calibration, voice profile, chats, mail, learned
+ * commands, maps, memory and moving to another phone.
+ */
 @Composable
 fun SettingsScreen(
     onNavigateBack: () -> Unit,
@@ -75,660 +87,227 @@ fun SettingsScreen(
     onOpenDiagnostics: () -> Unit = {},
     viewModel: SettingsViewModel = koinViewModel()
 ) {
+    val snackbarHost = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val say: (String) -> Unit = { text -> scope.launch { snackbarHost.showSnackbar(text) } }
+    LaunchedEffect(Unit) { viewModel.refreshLearned() }
+
+    HudBackground {
+        Column(Modifier.fillMaxSize()) {
+            HudTopBar(
+                title = "СИСТЕМЫ",
+                status = HudStatus("Настройки"),
+                navigation = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад", tint = OnBackground)
+                    }
+                },
+                actions = {
+                    IconButton(onClick = onOpenDiagnostics) {
+                        Icon(Icons.Filled.MonitorHeart, contentDescription = "Диагностика", tint = ArcCyan)
+                    }
+                }
+            )
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 14.dp)
+                    .navigationBarsPadding(),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Spacer(Modifier.height(4.dp))
+                IntelligencePanel(viewModel)
+                VoicePanel(viewModel, say)
+                CalibrationPanel(viewModel)
+                VoiceProfilePanel(viewModel)
+                ChatsPanel(viewModel)
+                MailPanel(viewModel)
+                LearnedPanel(viewModel)
+                MapsPanel(viewModel)
+                HudPanel("Память", index = 9) {
+                    HudNote("Карта того, что Пятница знает о вас: факты и разговоры, из которых они взялись.")
+                    HudOutlinedButton(onClick = onOpenDashboard, modifier = Modifier.fillMaxWidth()) {
+                        Text("Что Пятница знает обо мне")
+                    }
+                }
+                HudPanel("Перенос на другой телефон", index = 10) { TransferSection() }
+                Spacer(Modifier.height(24.dp))
+            }
+        }
+        SnackbarHost(snackbarHost, Modifier.align(Alignment.BottomCenter).navigationBarsPadding()) { data ->
+            Snackbar(snackbarData = data)
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun IntelligencePanel(viewModel: SettingsViewModel) {
     val apiKey by viewModel.apiKey.collectAsStateWithLifecycle()
     val model by viewModel.model.collectAsStateWithLifecycle()
     val isSaved by viewModel.isSaved.collectAsStateWithLifecycle()
-    val wakeWordEnabled by viewModel.wakeWordEnabled.collectAsStateWithLifecycle()
-    val modelState by viewModel.modelDownloadState.collectAsStateWithLifecycle()
-    val enrolment by viewModel.enrolment.collectAsStateWithLifecycle()
-    val gmail by viewModel.gmail.collectAsStateWithLifecycle()
+    val models by viewModel.models.collectAsStateWithLifecycle()
+    var expanded by remember { mutableStateOf(false) }
 
+    HudPanel("Интеллект · Groq", index = 1) {
+        HudReadout(
+            "Статус",
+            if (apiKey.isBlank()) "НЕТ КЛЮЧА" else "КЛЮЧ ЗАДАН",
+            valueColor = if (apiKey.isBlank()) ErrorColor else ArcCyan
+        )
+        OutlinedTextField(
+            value = apiKey,
+            onValueChange = viewModel::onApiKeyChange,
+            label = { Text("Ключ Groq API") },
+            placeholder = { Text("gsk_…") },
+            visualTransformation = PasswordVisualTransformation(),
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            colors = hudFieldColors()
+        )
+        ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
+            OutlinedTextField(
+                value = model,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Модель") },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                colors = hudFieldColors(),
+                modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable)
+            )
+            ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                models.forEach { name ->
+                    DropdownMenuItem(
+                        text = { Text(name) },
+                        onClick = {
+                            viewModel.onModelChange(name)
+                            expanded = false
+                        }
+                    )
+                }
+            }
+        }
+        HudButton(onClick = viewModel::saveSettings, modifier = Modifier.fillMaxWidth()) {
+            Text(if (isSaved) "Сохранено" else "Сохранить")
+        }
+        HudNote("Ключ хранится зашифрованным (Android Keystore) и уходит только в Groq.")
+    }
+}
+
+@Composable
+private fun ChatsPanel(viewModel: SettingsViewModel) {
+    val context = LocalContext.current
+    val announceCalls by viewModel.announceCalls.collectAsStateWithLifecycle()
+    val announceMessages by viewModel.announceMessages.collectAsStateWithLifecycle()
+    // Both need the notification listener; turning one on without it goes
+    // straight to the screen that grants it.
+    val needsAccess = { on: Boolean ->
+        if (on && !FridayNotificationListener.isEnabled(context)) FridayNotificationListener.openSettings(context)
+    }
+    HudPanel("Звонки и сообщения", index = 5) {
+        HudNote(
+            "Пятница читает WhatsApp, Telegram и SMS из уведомлений и отвечает на них " +
+                "(«прочитай сообщения», «ответь маме, что еду»). Нужен доступ к уведомлениям."
+        )
+        HudSwitchRow(
+            title = "Объявлять звонки",
+            subtitle = "Говорит, кто звонит: телефон, WhatsApp или Telegram",
+            checked = announceCalls,
+            onChange = { needsAccess(it); viewModel.onAnnounceCallsChange(it) }
+        )
+        HudSwitchRow(
+            title = "Читать новые сообщения",
+            subtitle = "Зачитывает личное сообщение и ждёт ответа",
+            checked = announceMessages,
+            onChange = { needsAccess(it); viewModel.onAnnounceMessagesChange(it) }
+        )
+    }
+}
+
+@Composable
+private fun MailPanel(viewModel: SettingsViewModel) {
+    val gmail by viewModel.gmail.collectAsStateWithLifecycle()
     // Google's consent screen. A cancelled screen comes back without data,
     // which the view model reports as "Вход отменён".
-    val gmailConsentLauncher = rememberLauncherForActivityResult(
+    val consentLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
         viewModel.onGmailConsent(result.data, completed = result.resultCode == android.app.Activity.RESULT_OK)
     }
     LaunchedEffect(gmail.consent) {
-        gmail.consent?.let { gmailConsentLauncher.launch(IntentSenderRequest.Builder(it).build()) }
+        gmail.consent?.let { consentLauncher.launch(IntentSenderRequest.Builder(it).build()) }
     }
-    val profile by viewModel.voiceProfile.collectAsStateWithLifecycle()
-    val calibrationPhase by viewModel.calibrationPhase.collectAsStateWithLifecycle()
-    val calibrationEnergy by viewModel.calibrationEnergy.collectAsStateWithLifecycle()
-    val isCalibrated by viewModel.isCalibrated.collectAsStateWithLifecycle()
-    val calibrationResult by viewModel.calibrationResult.collectAsStateWithLifecycle()
-    val mapsProvider by viewModel.mapsProvider.collectAsStateWithLifecycle()
-    val announceCalls by viewModel.announceCalls.collectAsStateWithLifecycle()
-    val announceMessages by viewModel.announceMessages.collectAsStateWithLifecycle()
-    val learnedCommands by viewModel.learnedCommands.collectAsStateWithLifecycle()
-    LaunchedEffect(Unit) { viewModel.refreshLearned() }
-    val context = LocalContext.current
-    val snackbarHost = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
-
-    val availableModels by viewModel.models.collectAsStateWithLifecycle()
-
-    var modelExpanded by remember { mutableStateOf(false) }
-
-    val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        val allGranted = permissions.values.all { it }
-        if (allGranted) {
-            if (Settings.canDrawOverlays(context)) {
-                viewModel.onWakeWordToggle(true)
+    HudPanel("Почта · Gmail", index = 6) {
+        HudReadout(
+            "Аккаунт",
+            gmail.account ?: "НЕ ПОДКЛЮЧЁН",
+            valueColor = if (gmail.account != null) ArcCyan else OnBackground
+        )
+        HudNote(
+            if (gmail.account != null) {
+                "Пятница проверяет входящие, читает письма и отвечает — отправляет только после вашего «да»."
             } else {
-                val intent = Intent(
-                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                    Uri.parse("package:${context.packageName}")
-                )
-                context.startActivity(intent)
-                scope.launch {
-                    snackbarHost.showSnackbar("Grant 'Display over other apps', then toggle again")
-                }
+                "После подключения: «есть новые письма?», «прочитай письмо от Ивана», «ответь Ивану: буду в пять»."
             }
-        }
-    }
-
-    Scaffold(
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = { Text("Settings", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                actions = {
-                    IconButton(onClick = onOpenDiagnostics) {
-                        Icon(Icons.Filled.MonitorHeart, contentDescription = "Diagnostics")
-                    }
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                )
-            )
-        },
-        snackbarHost = {
-            SnackbarHost(snackbarHost) { data -> Snackbar(snackbarData = data) }
-        },
-        containerColor = MaterialTheme.colorScheme.background
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 16.dp)
-                .verticalScroll(rememberScrollState())
-        ) {
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Text(
-                "Groq API Configuration",
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = apiKey,
-                onValueChange = viewModel::onApiKeyChange,
-                label = { Text("Groq API Key") },
-                placeholder = { Text("gsk_...") },
-                visualTransformation = PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            ExposedDropdownMenuBox(
-                expanded = modelExpanded,
-                onExpandedChange = { modelExpanded = it }
-            ) {
-                OutlinedTextField(
-                    value = model,
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("Model") },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = modelExpanded) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .menuAnchor(MenuAnchorType.PrimaryNotEditable)
-                )
-
-                ExposedDropdownMenu(
-                    expanded = modelExpanded,
-                    onDismissRequest = { modelExpanded = false }
-                ) {
-                    availableModels.forEach { modelName ->
-                        DropdownMenuItem(
-                            text = { Text(modelName) },
-                            onClick = {
-                                viewModel.onModelChange(modelName)
-                                modelExpanded = false
-                            }
-                        )
-                    }
-                }
+        )
+        gmail.message?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = ArcCyan) }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            HudButton(onClick = viewModel::connectGmail, enabled = !gmail.busy, modifier = Modifier.weight(1f)) {
+                Text(if (gmail.account == null) "Подключить Gmail" else "Переподключить")
             }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Button(
-                onClick = viewModel::saveSettings,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(if (isSaved) "Saved" else "Save Settings")
+            if (gmail.account != null) {
+                HudOutlinedButton(onClick = viewModel::disconnectGmail, enabled = !gmail.busy) { Text("Отключить") }
             }
-
-            Spacer(modifier = Modifier.height(24.dp))
-            HorizontalDivider()
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Text(
-                "Voice Assistant",
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Voice model status
-            when (val state = modelState) {
-                is VoskModelManager.DownloadState.NotDownloaded -> {
-                    Text(
-                        "Voice model not installed (~45 MB download)",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedButton(
-                        onClick = { viewModel.downloadVoiceModel() },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Download Voice Model")
-                    }
-                }
-                is VoskModelManager.DownloadState.Downloading -> {
-                    Text(
-                        "Downloading voice model... ${state.progress}%",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    LinearProgressIndicator(
-                        progress = { state.progress / 100f },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-                is VoskModelManager.DownloadState.Extracting -> {
-                    Text(
-                        "Extracting voice model...",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                }
-                is VoskModelManager.DownloadState.Ready -> {
-                    Text(
-                        "Voice model installed",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.tertiary
-                    )
-                }
-                is VoskModelManager.DownloadState.Error -> {
-                    Text(
-                        "Error: ${state.message}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedButton(
-                        onClick = { viewModel.downloadVoiceModel() },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Retry Download")
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        "Wake Word \"Friday\"",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                    Text(
-                        "Silently listens for \"Friday\" and shows assistant overlay",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                    )
-                }
-                Switch(
-                    checked = wakeWordEnabled,
-                    onCheckedChange = { enabled ->
-                        if (enabled) {
-                            if (modelState !is VoskModelManager.DownloadState.Ready) {
-                                scope.launch {
-                                    snackbarHost.showSnackbar("Download voice model first")
-                                }
-                                return@Switch
-                            }
-
-                            val perms = mutableListOf(Manifest.permission.RECORD_AUDIO)
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                perms.add(Manifest.permission.POST_NOTIFICATIONS)
-                            }
-                            val allGranted = perms.all {
-                                ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
-                            }
-                            if (!allGranted) {
-                                permissionLauncher.launch(perms.toTypedArray())
-                            } else if (!Settings.canDrawOverlays(context)) {
-                                val intent = Intent(
-                                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                    Uri.parse("package:${context.packageName}")
-                                )
-                                context.startActivity(intent)
-                                scope.launch {
-                                    snackbarHost.showSnackbar("Grant 'Display over other apps', then toggle again")
-                                }
-                            } else {
-                                viewModel.onWakeWordToggle(true)
-                                // Asked once, right when it starts mattering.
-                                if (isBatteryRestricted(context)) requestBatteryExemption(context)
-                            }
-                        } else {
-                            viewModel.onWakeWordToggle(false)
-                        }
-                    },
-                    enabled = modelState is VoskModelManager.DownloadState.Ready || wakeWordEnabled,
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = MaterialTheme.colorScheme.primary,
-                        checkedTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
-                    )
-                )
-            }
-            BackgroundWorkStatus(visible = wakeWordEnabled)
-
-            Spacer(modifier = Modifier.height(24.dp))
-            HorizontalDivider()
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Text(
-                "Voice Calibration",
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                "Calibrate Friday to your voice and environment for better wake word detection.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-
-            if (calibrationPhase != null) {
-                val phaseText = when (calibrationPhase) {
-                    VoiceCalibrator.Phase.MEASURING_SILENCE -> "Be quiet... measuring ambient noise"
-                    VoiceCalibrator.Phase.WAITING_FOR_SPEECH -> "Now say something (e.g. \"Friday, open camera\")"
-                    VoiceCalibrator.Phase.MEASURING_SPEECH -> "Keep talking... measuring your voice"
-                    VoiceCalibrator.Phase.DONE -> "Done!"
-                    null -> ""
-                }
-                Text(
-                    phaseText,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-
-                LinearProgressIndicator(
-                    progress = {
-                        when (calibrationPhase) {
-                            VoiceCalibrator.Phase.MEASURING_SILENCE -> 0.25f
-                            VoiceCalibrator.Phase.WAITING_FOR_SPEECH -> 0.5f
-                            VoiceCalibrator.Phase.MEASURING_SPEECH -> 0.75f
-                            VoiceCalibrator.Phase.DONE -> 1f
-                            null -> 0f
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Text(
-                    "Energy: %.0f".format(calibrationEnergy),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                )
-            } else {
-                Button(
-                    onClick = { viewModel.startCalibration() },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(if (isCalibrated) "Recalibrate Voice" else "Calibrate Voice")
-                }
-            }
-
-            if (isCalibrated && calibrationPhase == null) {
-                Spacer(modifier = Modifier.height(12.dp))
-                val result = calibrationResult
-                if (result != null) {
-                    Text(
-                        ("Ambient noise: %.0f  |  Your voice: %.0f\n" +
-                            "Wake threshold: %.0f  |  Whisper threshold: %.0f").format(
-                            result.ambientNoise, result.speechEnergy,
-                            result.wakeWordThreshold, result.whisperThreshold
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.tertiary
-                    )
-                } else {
-                    Text(
-                        "Voice calibrated",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.tertiary
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-            HorizontalDivider()
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Text(
-                "Голосовой профиль",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            val current = profile
-            Text(
-                when {
-                    current == null ->
-                        "Пока Friday откликается на любой голос. Запишите голос — " +
-                            "${VoiceProfile.ENROLMENT_PHRASES.size} коротких фраз, и она перестанет " +
-                            "реагировать на чужих."
-                    !current.coversCommands ->
-                        "Профиль записан только на слове «Пятница», поэтому проверяется лишь " +
-                            "пробуждение: команды после него он отвергал бы через раз. " +
-                            "Перезапишите, чтобы проверялось и то, что вы говорите дальше."
-                    else ->
-                        "Проверяется и пробуждение, и команды. Записано фраз: ${current.sampleCount}, " +
-                            "порог %.2f, похожесть записей %.2f.".format(current.threshold, current.cohesion)
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-            )
-
-            if (enrolment.total > 0) {
-                Spacer(modifier = Modifier.height(12.dp))
-                LinearProgressIndicator(
-                    progress = { enrolment.recorded.toFloat() / enrolment.total },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    "${enrolment.recorded} / ${enrolment.total}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                )
-            }
-            enrolment.message?.let {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    it,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (enrolment.recording) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.tertiary
-                )
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-            Row {
-                Button(
-                    onClick = {
-                        val granted = ContextCompat.checkSelfPermission(
-                            context, Manifest.permission.RECORD_AUDIO
-                        ) == PackageManager.PERMISSION_GRANTED
-                        if (granted) viewModel.enrollVoice()
-                        else permissionLauncher.launch(arrayOf(Manifest.permission.RECORD_AUDIO))
-                    },
-                    enabled = !enrolment.recording,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text(if (profile == null) "Записать голос" else "Перезаписать")
-                }
-                if (profile != null) {
-                    Spacer(modifier = Modifier.width(8.dp))
-                    OutlinedButton(
-                        onClick = { viewModel.clearVoiceProfile() },
-                        enabled = !enrolment.recording
-                    ) {
-                        Text("Сбросить")
-                    }
-                }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                "Записывайте там же, где обычно зовёте Friday — профиль, снятый в тишине, " +
-                    "потом не узнаёт вас в машине.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-            HorizontalDivider()
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Text(
-                "Почта Gmail",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                gmail.account?.let {
-                    "Подключено: $it. Friday проверяет входящие, читает письма и отвечает — " +
-                        "отправляет только после вашего «да»."
-                } ?: "Не подключено. После подключения можно спросить «есть новые письма?», " +
-                    "«прочитай письмо от Ивана», «ответь Ивану: буду в пять».",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-            )
-            gmail.message?.let {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.tertiary)
-            }
-            Spacer(modifier = Modifier.height(12.dp))
-            Row {
-                Button(
-                    onClick = { viewModel.connectGmail() },
-                    enabled = !gmail.busy,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text(if (gmail.account == null) "Подключить Gmail" else "Переподключить")
-                }
-                if (gmail.account != null) {
-                    Spacer(modifier = Modifier.width(8.dp))
-                    OutlinedButton(onClick = { viewModel.disconnectGmail() }, enabled = !gmail.busy) {
-                        Text("Отключить")
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-            HorizontalDivider()
-            Spacer(modifier = Modifier.height(24.dp))
-
-            OutlinedButton(
-                onClick = onOpenDashboard,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Что Пятница знает обо мне")
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                "A map of what Friday knows about you: facts it has learned, " +
-                    "and the conversations they came from.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-            )
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Text(
-                "Перенос на другой телефон",
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            TransferSection()
-
-            Spacer(modifier = Modifier.height(24.dp))
-            HorizontalDivider()
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Text(
-                "Learned commands",
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                "Phrases the AI worked out once and Friday now carries out directly, without the AI. " +
-                    "Say \"нет, не то\" right after a wrong one and it is forgotten; or remove it here.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            if (learnedCommands.isEmpty()) {
-                Text(
-                    "Nothing learned yet.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                )
-            }
-            learnedCommands.forEach { (phrase, action) ->
-                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("«$phrase»", style = MaterialTheme.typography.bodyLarge)
-                        Text(
-                            action,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                        )
-                    }
-                    IconButton(onClick = { viewModel.forgetLearned(phrase) }) {
-                        Icon(Icons.Default.Close, contentDescription = "Forget «$phrase»")
-                    }
-                }
-            }
-            if (learnedCommands.isNotEmpty()) {
-                OutlinedButton(onClick = { viewModel.forgetAllLearned() }) { Text("Forget all") }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-            HorizontalDivider()
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Text(
-                "Calls & messages",
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                "Friday reads WhatsApp, Telegram and SMS from their notifications and can answer them " +
-                    "(\"прочитай сообщения\", \"ответь маме, что еду\"). Needs notification access.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            // Both need the notification listener; turning one on without it
-            // goes straight to the screen that grants it.
-            val needsAccess = { on: Boolean ->
-                if (on && !FridayNotificationListener.isEnabled(context)) {
-                    FridayNotificationListener.openSettings(context)
-                }
-            }
-            ToggleRow(
-                title = "Announce calls",
-                subtitle = "Say who is calling — phone, WhatsApp or Telegram",
-                checked = announceCalls,
-                onChange = { needsAccess(it); viewModel.onAnnounceCallsChange(it) }
-            )
-            ToggleRow(
-                title = "Read new messages aloud",
-                subtitle = "Say each new personal message, then listen for a reply",
-                checked = announceMessages,
-                onChange = { needsAccess(it); viewModel.onAnnounceMessagesChange(it) }
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-            HorizontalDivider()
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Text(
-                "Maps",
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                "Which app to use for \"find nearest coffee shop / bank / ...\". " +
-                    "Phone default opens whatever maps app you set in Android.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Row(modifier = Modifier.fillMaxWidth()) {
-                val providers = listOf("auto" to "Phone default", "google" to "Google", "yandex" to "Yandex")
-                providers.forEach { (value, label) ->
-                    OutlinedButton(
-                        onClick = { viewModel.onMapsProviderChange(value) },
-                        modifier = Modifier.weight(1f).padding(horizontal = 4.dp),
-                        colors = if (mapsProvider == value) {
-                            androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
-                                containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-                            )
-                        } else {
-                            androidx.compose.material3.ButtonDefaults.outlinedButtonColors()
-                        }
-                    ) {
-                        Text(label)
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(32.dp))
         }
     }
 }
 
 @Composable
-private fun ToggleRow(title: String, subtitle: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onBackground)
-            Text(
-                subtitle,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-            )
+private fun LearnedPanel(viewModel: SettingsViewModel) {
+    val learned by viewModel.learnedCommands.collectAsStateWithLifecycle()
+    HudPanel("Выученные команды", index = 7) {
+        HudNote(
+            "Фразы, которые ИИ однажды разобрал, а теперь Пятница выполняет сама, без ИИ. " +
+                "Скажите «нет, не то» сразу после ошибки — и она забудет; или уберите здесь."
+        )
+        if (learned.isEmpty()) HudReadout("Выучено", "0")
+        learned.forEach { (phrase, action) ->
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("«$phrase»", style = MaterialTheme.typography.bodyLarge, color = OnBackground)
+                    Text(action, style = HudLabelStyle, color = ArcCyan.copy(alpha = 0.7f))
+                }
+                IconButton(onClick = { viewModel.forgetLearned(phrase) }) {
+                    Icon(
+                        Icons.Default.Close,
+                        contentDescription = "Забыть «$phrase»",
+                        tint = ArcCyan.copy(alpha = 0.7f)
+                    )
+                }
+            }
         }
-        Switch(checked = checked, onCheckedChange = onChange)
+        if (learned.isNotEmpty()) {
+            HudOutlinedButton(onClick = viewModel::forgetAllLearned) { Text("Забыть все") }
+        }
+    }
+}
+
+@Composable
+private fun MapsPanel(viewModel: SettingsViewModel) {
+    val provider by viewModel.mapsProvider.collectAsStateWithLifecycle()
+    HudPanel("Карты", index = 8) {
+        HudNote("Чем открывать «найди ближайшую кофейню / банк / …». «Как в телефоне» — карты по умолчанию.")
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("auto" to "Телефон", "google" to "Google", "yandex" to "Яндекс").forEach { (value, label) ->
+                Box(Modifier.weight(1f)) {
+                    HudOutlinedButton(
+                        onClick = { viewModel.onMapsProviderChange(value) },
+                        selected = provider == value,
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text(label, maxLines = 1) }
+                }
+            }
+        }
     }
 }

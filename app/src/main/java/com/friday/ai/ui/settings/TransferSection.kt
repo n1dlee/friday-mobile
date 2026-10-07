@@ -10,10 +10,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -28,6 +26,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.friday.ai.data.backup.SettingsArchive
 import com.friday.ai.data.backup.SettingsTransfer
+import com.friday.ai.ui.theme.HudButton
+import com.friday.ai.ui.theme.HudOutlinedButton
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -55,12 +55,12 @@ fun TransferSection(viewModel: TransferViewModel = koinViewModel()) {
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(
+            HudButton(
                 onClick = { createFile.launch("friday-${today()}.friday") },
                 enabled = state !is TransferViewModel.State.Working,
                 modifier = Modifier.weight(1f)
             ) { Text("Экспорт") }
-            OutlinedButton(
+            HudOutlinedButton(
                 onClick = { openFile.launch(arrayOf("*/*")) },
                 enabled = state !is TransferViewModel.State.Working,
                 modifier = Modifier.weight(1f)

@@ -17,36 +17,23 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.ErrorOutline
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.RemoveCircleOutline
-import androidx.compose.material3.CenterAlignedTopAppBar
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -58,12 +45,22 @@ import com.friday.ai.service.FridayNotificationListener
 import com.friday.ai.ui.settings.requestBatteryExemption
 import com.friday.ai.ui.theme.ArcAmber
 import com.friday.ai.ui.theme.ArcCyan
+import com.friday.ai.ui.theme.ArcCyanDim
+import com.friday.ai.ui.theme.HudBackground
+import com.friday.ai.ui.theme.HudLabelStyle
+import com.friday.ai.ui.theme.HudOutlinedButton
+import com.friday.ai.ui.theme.HudPanel
+import com.friday.ai.ui.theme.HudStatus
+import com.friday.ai.ui.theme.HudTopBar
+import com.friday.ai.ui.theme.OnBackground
+import com.friday.ai.ui.theme.OnSurfaceMuted
+import com.friday.ai.ui.theme.StatusDot
 
 /**
  * "Is everything in order?" — every permission, setting and integration a
  * Friday feature depends on, what its absence breaks, and one tap to fix it.
+ * Drawn as a systems check: one panel per group, a lit dot per line.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DiagnosticsScreen(
     viewModel: DiagnosticsViewModel,
@@ -77,109 +74,81 @@ fun DiagnosticsScreen(
         onPauseOrDispose { }
     }
     val fix = rememberFixer(onOpenSettings) { viewModel.refresh() }
+    val current = rows
+    val problems = current?.let(Diagnostics::problems)
 
-    Scaffold(
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = { Text("Diagnostics", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
+    HudBackground {
+        Column(Modifier.fillMaxSize()) {
+            HudTopBar(
+                title = "ДИАГНОСТИКА",
+                status = when (problems) {
+                    null -> HudStatus("Проверяю", ArcAmber, live = true)
+                    0 -> HudStatus("Все системы в норме")
+                    else -> HudStatus("Требует внимания: $problems", ArcAmber)
+                },
+                navigation = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад", tint = OnBackground)
                     }
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                )
-            )
-        },
-        containerColor = MaterialTheme.colorScheme.background
-    ) { padding ->
-        val current = rows
-        if (current == null) {
-            Text("Checking…", modifier = Modifier.padding(padding).padding(16.dp))
-            return@Scaffold
-        }
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            item { Summary(Diagnostics.problems(current)) }
-            Diagnostics.Group.entries.forEach { group ->
-                val inGroup = current.filter { it.group == group }
-                if (inGroup.isEmpty()) return@forEach
-                item {
-                    Text(
-                        group.title,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onBackground,
-                        modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)
-                    )
                 }
-                items(inGroup, key = { it.id }) { row -> DiagnosticRow(row, onFix = fix) }
+            )
+            if (current == null) return@Column
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp).navigationBarsPadding(),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                item { Spacer(Modifier.height(4.dp)) }
+                Diagnostics.Group.entries.forEachIndexed { i, group ->
+                    val inGroup = current.filter { it.group == group }
+                    if (inGroup.isEmpty()) return@forEachIndexed
+                    item(key = group.name) {
+                        val accent = if (inGroup.any { it.status == Status.PROBLEM }) ArcAmber else ArcCyan
+                        HudPanel(group.title, index = i + 1, accent = accent) {
+                            inGroup.forEach { row -> DiagnosticRow(row, onFix = fix) }
+                        }
+                    }
+                }
+                item { Spacer(Modifier.height(24.dp)) }
             }
-            item { Spacer(Modifier.height(24.dp)) }
-        }
-    }
-}
-
-@Composable
-private fun Summary(problems: Int) {
-    val ok = problems == 0
-    Surface(
-        shape = RoundedCornerShape(16.dp),
-        color = (if (ok) ArcCyan else ArcAmber).copy(alpha = 0.12f),
-        modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
-    ) {
-        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                if (ok) Icons.Filled.CheckCircle else Icons.Filled.ErrorOutline,
-                contentDescription = null,
-                tint = if (ok) ArcCyan else ArcAmber
-            )
-            Spacer(Modifier.width(12.dp))
-            Text(
-                when (problems) {
-                    0 -> "Everything Friday needs is in place"
-                    1 -> "1 thing needs your attention"
-                    else -> "$problems things need your attention"
-                },
-                style = MaterialTheme.typography.titleMedium
-            )
         }
     }
 }
 
 @Composable
 private fun DiagnosticRow(row: Diagnostics.Row, onFix: (Fix) -> Unit) {
-    val (icon, tint) = statusLook(row.status)
+    val (label, tint) = statusLook(row.status)
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+        modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) {},
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // The icon carries the status as well as the colour, so it doesn't rely on colour alone.
-        Icon(icon, contentDescription = row.status.name.lowercase(), tint = tint, modifier = Modifier.size(22.dp))
-        Spacer(Modifier.width(12.dp))
+        StatusDot(tint, live = row.status == Status.PROBLEM)
+        Spacer(Modifier.width(8.dp))
         Column(Modifier.weight(1f)) {
-            Text(row.title, style = MaterialTheme.typography.bodyLarge)
-            Text(
-                row.detail,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    row.title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = OnBackground,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+                Spacer(Modifier.width(8.dp))
+                // The word carries the status as well as the colour, so it doesn't rely on colour alone.
+                Text(label, style = HudLabelStyle, color = tint)
+            }
+            Text(row.detail, style = MaterialTheme.typography.bodyMedium, color = OnSurfaceMuted)
         }
         row.fix?.let { fix ->
             Spacer(Modifier.width(8.dp))
-            OutlinedButton(onClick = { onFix(fix) }) { Text("Fix") }
+            HudOutlinedButton(onClick = { onFix(fix) }) { Text("Исправить") }
         }
     }
 }
 
-@Composable
-private fun statusLook(status: Status): Pair<ImageVector, Color> = when (status) {
-    Status.OK -> Icons.Filled.CheckCircle to ArcCyan
-    Status.PROBLEM -> Icons.Filled.ErrorOutline to ArcAmber
-    Status.OFF -> Icons.Filled.RemoveCircleOutline to MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-    Status.INFO -> Icons.Filled.Info to MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+private fun statusLook(status: Status): Pair<String, Color> = when (status) {
+    Status.OK -> "OK" to ArcCyan
+    Status.PROBLEM -> "СБОЙ" to ArcAmber
+    Status.OFF -> "ВЫКЛ" to OnSurfaceMuted
+    Status.INFO -> "INFO" to ArcCyanDim
 }
 
 /**

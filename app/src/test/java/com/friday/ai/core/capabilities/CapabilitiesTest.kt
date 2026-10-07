@@ -182,7 +182,7 @@ class DiagnosticsTest {
     fun `a stopped listener with the wake word on is a problem`() {
         val c = allGood.copy(voice = allGood.voice.copy(listening = false, voiceProfile = false))
         assertEquals(Status.PROBLEM, row(c, "listening").status)
-        assertTrue(row(c, "voice_profile").detail.contains("any voice"))
+        assertTrue(row(c, "voice_profile").detail.contains("любой голос"))
     }
 
     @Test

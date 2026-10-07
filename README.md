@@ -36,6 +36,12 @@ Friday is a hands-free personal assistant for Android in the spirit of J.A.R.V.I
 > [!NOTE]
 > Friday is a personal project in **preview**. It needs a free [Groq API key](https://console.groq.com/keys) and a 64-bit Android phone (Android 8.0+). The interface and voice are tuned for **Russian and English**.
 
+<div align="center">
+<img src="docs/assets/screens/chat_standby.png" alt="Standby: the arc reactor and suggestions" width="30%">&nbsp;
+<img src="docs/assets/screens/chat_conversation.png" alt="A conversation" width="30%">&nbsp;
+<img src="docs/assets/screens/panels.png" alt="Settings panels" width="30%">
+</div>
+
 ## ✨ Highlights
 
 <table>
