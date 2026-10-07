@@ -51,7 +51,8 @@ class SettingsTransfer(
             interactions = backup.interactions(),
             summaries = backup.summaries(),
             modes = backup.modes(),
-            schedules = backup.schedules()
+            schedules = backup.schedules(),
+            events = backup.events()
         )
         return withContext(Dispatchers.Default) { archive.seal(content, passphrase) }
     }
@@ -87,7 +88,8 @@ class SettingsTransfer(
             interactions = content.interactions,
             summaries = content.summaries,
             modes = content.modes,
-            schedules = content.schedules
+            schedules = content.schedules,
+            events = content.events
         )
     }
 

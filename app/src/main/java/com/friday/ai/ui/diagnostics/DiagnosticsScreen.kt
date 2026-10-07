@@ -199,6 +199,9 @@ private fun permissionsFor(fix: Fix): Array<String> = when (fix) {
     Fix.PHONE -> arrayOf(Manifest.permission.CALL_PHONE)
     Fix.CALENDAR -> arrayOf(Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR)
     Fix.LOCATION -> arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
+    Fix.NEARBY_DEVICES ->
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) arrayOf(Manifest.permission.BLUETOOTH_CONNECT)
+        else emptyArray()
     else -> emptyArray()
 }
 

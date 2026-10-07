@@ -97,6 +97,7 @@ class FridayWakeWordService : Service() {
     private lateinit var conversation: VoiceConversation
     private lateinit var prefDao: UserPreferenceDao
     private var started = false
+    private var links: LinkWatcher? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -176,6 +177,7 @@ class FridayWakeWordService : Service() {
         gate.load(prefDao.get(PREF_VOICE_PROFILE))
         prefDao.get("whisper_threshold")?.toDoubleOrNull()?.let { transcriber.silenceThreshold = it }
         if (wake.initialise(prefDao.get("wake_threshold")?.toDoubleOrNull())) wake.resume()
+        watchLinks()
         // Calls and messages the notification listener heard about.
         scope.launch {
             get<Announcer>(Announcer::class.java).announcements
@@ -183,7 +185,26 @@ class FridayWakeWordService : Service() {
         }
     }
 
+    /**
+     * Modes waiting for the car's Bluetooth, the charger or home Wi-Fi. A
+     * Bluetooth connection is a moment the owner is there (getting in the
+     * car, putting headphones on), so the result is said; the rest is a
+     * quiet notification.
+     */
+    private fun watchLinks() {
+        val engine = get<com.friday.ai.core.modes.ModeEngine>(com.friday.ai.core.modes.ModeEngine::class.java)
+        val commands = get<CommandExecutor>(CommandExecutor::class.java)
+        links = LinkWatcher(this, scope, AndroidPhoneLinks(this)) { trigger, value, connected ->
+            val said = engine.onLink(trigger, value, connected, russian = true) { step ->
+                (commands.execute(step, russian = true) as? CommandExecutor.Outcome.Reply)?.text.orEmpty()
+            } ?: return@LinkWatcher
+            val ownerIsThere = trigger == com.friday.ai.core.modes.Trigger.BLUETOOTH && connected
+            if (ownerIsThere) conversation.announce(said, listenAfter = false) else notifyModeResult(this, said)
+        }.also { it.start() }
+    }
+
     override fun onDestroy() {
+        links?.stop()
         running = false
         started = false
         if (::conversation.isInitialized) {

@@ -16,6 +16,7 @@ import com.friday.ai.data.local.entity.ChatMessageEntity
 import com.friday.ai.data.local.entity.InteractionEntity
 import com.friday.ai.data.local.entity.ErrandEntity
 import com.friday.ai.data.local.entity.ModeEntity
+import com.friday.ai.data.local.entity.ModeEventEntity
 import com.friday.ai.data.local.entity.ModeRunEntity
 import com.friday.ai.data.local.entity.ModeScheduleEntity
 import com.friday.ai.data.local.entity.MemoryEntity
@@ -34,9 +35,10 @@ import com.friday.ai.data.local.entity.UserPreferenceEntity
         ErrandEntity::class,
         ModeEntity::class,
         ModeScheduleEntity::class,
-        ModeRunEntity::class
+        ModeRunEntity::class,
+        ModeEventEntity::class
     ],
-    version = 9,
+    version = 10,
     // Exported so Room can verify the hand-written migrations.
     exportSchema = true
 )

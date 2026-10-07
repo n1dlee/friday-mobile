@@ -46,6 +46,8 @@
     <!-- Modes on a schedule: alarms are re-booked after a reboot. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <!-- Modes started by a Bluetooth device (the car, headphones): its name, and paired devices. -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
     <application
         android:name=".FridayApp"

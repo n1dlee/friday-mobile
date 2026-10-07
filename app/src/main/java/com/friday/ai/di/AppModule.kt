@@ -164,7 +164,10 @@ val appModule = module {
     }
     single {
         val compiler = get<com.friday.ai.core.modes.ModeCompiler>()
-        com.friday.ai.core.modes.ModeEngine(get(), compiler::compile, get(), schedules = get())
+        com.friday.ai.core.modes.ModeEngine(
+            get(), compiler::compile, get(), schedules = get(),
+            links = com.friday.ai.service.AndroidPhoneLinks(androidContext())
+        )
     }
     single {
         com.friday.ai.command.CommandExecutor(

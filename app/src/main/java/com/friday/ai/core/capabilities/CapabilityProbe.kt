@@ -93,7 +93,9 @@ class CapabilityProbe(
             batteryExempt = power.isIgnoringBatteryOptimizations(context.packageName),
             dndAccess = (context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager)
                 .isNotificationPolicyAccessGranted,
-            writeSettings = Settings.System.canWrite(context)
+            writeSettings = Settings.System.canWrite(context),
+            nearbyDevices = Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+                granted(Manifest.permission.BLUETOOTH_CONNECT)
         )
     }
 

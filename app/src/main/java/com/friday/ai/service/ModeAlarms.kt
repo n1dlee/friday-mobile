@@ -75,9 +75,6 @@ class ModeAlarmReceiver : BroadcastReceiver() {
 
     private companion object {
         const val TAG = "ModeAlarmReceiver"
-        const val CHANNEL_ID = "friday_modes"
-        const val NOTIFICATION_ID = 4_201
-        const val PREVIEW_CHARS = 80
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -106,7 +103,7 @@ class ModeAlarmReceiver : BroadcastReceiver() {
             (commands.execute(step, russian = true) as? CommandExecutor.Outcome.Reply)?.text.orEmpty()
         }
         schedules.byId(id)?.let { ModeAlarms(context).book(it) }
-        said?.let { notify(context, it) }
+        said?.let { notifyModeResult(context, it) }
     }
 
     private suspend fun rebookAll(context: Context, schedules: ModeSchedules) {
@@ -114,28 +111,33 @@ class ModeAlarmReceiver : BroadcastReceiver() {
         ModeAlarms(context).rebook(all, emptySet())
         Log.i(TAG, "Re-booked ${all.size} mode schedules")
     }
-
-    private fun notify(context: Context, text: String) {
-        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            manager.createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, "Режимы по расписанию", NotificationManager.IMPORTANCE_LOW)
-                    .apply { description = "Что сделал режим, включённый по расписанию" }
-            )
-        }
-        val open = context.packageManager.getLaunchIntentForPackage(context.packageName)
-        val tap = PendingIntent.getActivity(
-            context, 0, open, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setContentTitle("Пятница")
-            .setContentText(text.take(PREVIEW_CHARS))
-            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentIntent(tap)
-            .setAutoCancel(true)
-            .setSilent(true)
-            .build()
-        runCatching { manager.notify(NOTIFICATION_ID, notification) }
-    }
 }
+
+/** A mode that started or ended by itself says so quietly: a silent notification. */
+fun notifyModeResult(context: Context, text: String) {
+    val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        manager.createNotificationChannel(
+            NotificationChannel(CHANNEL_ID, "Режимы", NotificationManager.IMPORTANCE_LOW)
+                .apply { description = "Что сделал режим, включившийся сам: по расписанию, Bluetooth, зарядке, Wi-Fi" }
+        )
+    }
+    val open = context.packageManager.getLaunchIntentForPackage(context.packageName)
+    val tap = PendingIntent.getActivity(
+        context, 0, open, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    )
+    val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+        .setContentTitle("Пятница")
+        .setContentText(text.take(PREVIEW_CHARS))
+        .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+        .setSmallIcon(android.R.drawable.ic_dialog_info)
+        .setContentIntent(tap)
+        .setAutoCancel(true)
+        .setSilent(true)
+        .build()
+    runCatching { manager.notify(NOTIFICATION_ID, notification) }
+}
+
+private const val CHANNEL_ID = "friday_modes"
+private const val NOTIFICATION_ID = 4_201
+private const val PREVIEW_CHARS = 80

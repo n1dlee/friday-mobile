@@ -34,6 +34,16 @@ class ModesViewModel(
             .map { all -> all.groupBy { it.modeId } }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
+    /** Each mode's Bluetooth / Wi-Fi / charger triggers, by mode id. */
+    val events: StateFlow<Map<String, List<com.friday.ai.core.modes.ModeEvent>>> =
+        (timetable?.observeEvents() ?: kotlinx.coroutines.flow.flowOf(emptyList()))
+            .map { all -> all.groupBy { it.modeId } }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    fun removeEvent(e: com.friday.ai.core.modes.ModeEvent) {
+        viewModelScope.launch { timetable?.deleteEvent(e.id) }
+    }
+
     fun unschedule(s: com.friday.ai.core.modes.Schedule) {
         viewModelScope.launch { timetable?.delete(s.id) }
     }

@@ -126,7 +126,7 @@ class MigrationSchemaTest {
 
     @Test
     fun `mode schedules and runs migration matches the generated schema`() {
-        listOf("mode_schedules", "mode_runs").forEach { table ->
+        listOf("mode_schedules", "mode_runs", "mode_events").forEach { table ->
             assertEquals(
                 "MIGRATION_8_9 would be rejected by Room at open time ($table)",
                 columnsOf(createSqlFor(table)), columnsOf(migrationCreateFor(table))

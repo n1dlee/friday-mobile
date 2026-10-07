@@ -46,6 +46,18 @@ sealed interface CommandResult {
         data class Schedule(val id: String, val exit: Boolean, val hour: Int?, val minute: Int?, val days: Int) : Mode
         /** "Убери расписание режима отдыха". */
         data class Unschedule(val id: String) : Mode
+        /**
+         * "Включай режим вождения, когда подключаюсь к машине". [trigger] is
+         * a [com.friday.ai.core.modes.Trigger] key; [target] is how the owner
+         * named the device or network.
+         */
+        data class OnEvent(
+            val id: String,
+            val trigger: String,
+            val target: String,
+            val onConnect: Boolean,
+            val exit: Boolean
+        ) : Mode
     }
 
     data class OpenApp(val appName: String, val packageHint: String?) : Phone

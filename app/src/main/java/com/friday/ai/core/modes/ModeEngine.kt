@@ -22,7 +22,8 @@ import java.time.LocalDateTime
  * Every reply is assembled from what the steps actually reported, so a
  * missing permission is said, not hidden.
  */
-@Suppress("TooManyFunctions") // one handler per kind of request
+// One handler per kind of request; the constructor takes its collaborators and the two clocks tests replace.
+@Suppress("TooManyFunctions", "LongParameterList")
 class ModeEngine(
     private val store: ModeStore,
     /** [ModeCompiler.compile]; a function so the engine is tested without Groq. */
@@ -31,7 +32,9 @@ class ModeEngine(
     private val clock: () -> Long = System::currentTimeMillis,
     private val now: () -> LocalDateTime = LocalDateTime::now,
     /** Schedules and run history; without them, modes simply have no timetable. */
-    private val schedules: ModeSchedules? = null
+    private val schedules: ModeSchedules? = null,
+    /** The phone's Bluetooth and Wi-Fi, to tell which device "машина" is. */
+    private val links: PhoneLinks? = null
 ) {
 
     private companion object {
@@ -78,7 +81,13 @@ class ModeEngine(
      * system setting, not a mode Friday doesn't have.
      */
     fun route(text: String): CommandResult.Mode? =
-        correction(text) ?: scheduleRequest(text) ?: cancelRequest(text) ?: request(text)
+        correction(text) ?: eventRequest(text) ?: scheduleRequest(text) ?: cancelRequest(text) ?: request(text)
+
+    private fun eventRequest(text: String): CommandResult.Mode? {
+        if (schedules == null || links == null) return null
+        val r = EventPhrases.parse(text) ?: return null
+        return nameAtStart(r.rest)?.let { CommandResult.Mode.OnEvent(it.id, r.trigger.key, r.target, r.onConnect, r.exit) }
+    }
 
     /** "Отмена" / "нет, не так" just after creating a mode. */
     private fun cancelRequest(text: String): CommandResult.Mode? {
@@ -174,6 +183,7 @@ class ModeEngine(
                 ?: missing(request.name, say)
             is CommandResult.Mode.Schedule -> schedule(request, say)
             is CommandResult.Mode.Unschedule -> unschedule(request.id, say)
+            is CommandResult.Mode.OnEvent -> onEvent(request, say)
             CommandResult.Mode.ListAll -> list(say)
         }
     }
@@ -228,6 +238,78 @@ class ModeEngine(
         )
         val reply = say("Режим ${mode.name}. ", "${mode.name} mode. ") + sentences(messages)
         return if (automatic) reply else reply + habitQuestion(mode, say)
+    }
+
+    // --- events --------------------------------------------------------------
+
+    private suspend fun onEvent(request: CommandResult.Mode.OnEvent, say: Say): String {
+        val mode = store.byId(request.id) ?: return say("Этого режима уже нет.", "That mode is gone.")
+        val timetable = schedules ?: return say("Недоступно.", "Not available.")
+        val trigger = Trigger.of(request.trigger) ?: return say("Не поняла, при чём включать.", "I didn't get the trigger.")
+        if (!request.exit && mode.steps.any { it.tool in NEEDS_OWNER }) {
+            return say(
+                "В режиме ${mode.name} есть звонок или сообщение — сам по себе, без вас, такой режим я не запускаю.",
+                "${mode.name} mode calls or messages someone, so I won't start it by itself."
+            )
+        }
+        val (value, note) = when (trigger) {
+            Trigger.CHARGER -> "" to ""
+            Trigger.BLUETOOTH -> bluetoothDevice(request.target, say) ?: return bluetoothHelp(request.target, say)
+            Trigger.WIFI -> links?.wifi()?.let { it to "" } ?: return say(
+                "Подключитесь к этой сети Wi-Fi и скажите ещё раз — и проверьте, что геопозиция включена: без неё Android не называет сеть.",
+                "Connect to that Wi-Fi network and say it again, with location on — Android won't name the network without it."
+            )
+        }
+        val event = timetable.addEvent(mode.id, trigger, value, request.onConnect, request.exit)
+        val verb = if (request.exit) say("выключать", "turn off") else say("включать", "turn on")
+        val described = describeEvent(event, say.russian)
+        val gap = if (described.startsWith("когда") || described.startsWith("when")) ", " else " "
+        return say("Буду $verb режим ${mode.name}", "I'll $verb ${mode.name} mode") + gap + described + "." + note
+    }
+
+    /** The device "к машине" means: a paired one by name, else the one connected right now. */
+    private suspend fun bluetoothDevice(target: String, say: Say): Pair<String, String>? {
+        val bt = links?.bluetooth() ?: return null
+        if (!bt.permitted) return null
+        EventPhrases.device(target, bt.paired)?.let { return it to "" }
+        val connected = bt.connected.singleOrNull() ?: return null
+        return connected to say(" Взяла то, что подключено сейчас: «$connected».", " I took what's connected now: \"$connected\".")
+    }
+
+    private suspend fun bluetoothHelp(target: String, say: Say): String {
+        val bt = links?.bluetooth()
+        return if (bt != null && !bt.permitted) {
+            say(
+                "Нужно разрешение «Устройства поблизости», чтобы видеть Bluetooth. Включите его в Диагностике и скажите ещё раз.",
+                "I need the Nearby devices permission to see Bluetooth. Turn it on in Diagnostics and say it again."
+            )
+        } else {
+            say(
+                "Не знаю, какое устройство — «$target». Подключитесь к нему и скажите это ещё раз.",
+                "I don't know which device \"$target\" is. Connect to it and say it again."
+            )
+        }
+    }
+
+    /**
+     * Something happened to the phone's links: runs or ends the modes waiting
+     * for it, without steps that need the owner there. Returns what was done,
+     * to be said or shown; null when nothing was waiting for this.
+     */
+    suspend fun onLink(trigger: Trigger, value: String, connected: Boolean, russian: Boolean, runner: suspend (CommandResult) -> String): String? {
+        val timetable = schedules ?: return null
+        val say = Say(russian)
+        val replies = timetable.events()
+            .filter { it.trigger == trigger && it.onConnect == connected && (trigger == Trigger.CHARGER || it.value == value) }
+            .mapNotNull { e ->
+                val mode = store.byId(e.modeId) ?: return@mapNotNull null
+                when {
+                    e.exit && mode.active -> exit(mode, say, runner)
+                    e.exit -> null
+                    else -> run(mode, say, runner, automatic = true, steps = mode.steps.filterNot { it.tool in NEEDS_OWNER })
+                }
+            }
+        return replies.joinToString(" ").ifBlank { null }
     }
 
     // --- schedules ---------------------------------------------------------

@@ -17,6 +17,22 @@ data class Schedule(
     val lastFiredAt: Long = 0
 )
 
+/** "при подключении к «Toyota Touch»", "когда телефон ставят на зарядку". */
+fun describeEvent(e: ModeEvent, russian: Boolean): String = when (e.trigger) {
+    Trigger.CHARGER -> when {
+        russian && e.onConnect -> "когда телефон ставят на зарядку"
+        russian -> "когда телефон снимают с зарядки"
+        e.onConnect -> "when the phone goes on charge"
+        else -> "when the phone comes off charge"
+    }
+    Trigger.BLUETOOTH, Trigger.WIFI -> when {
+        russian && e.onConnect -> "при подключении к «${e.value}»"
+        russian -> "при отключении от «${e.value}»"
+        e.onConnect -> "on connecting to \"${e.value}\""
+        else -> "on disconnecting from \"${e.value}\""
+    }
+}
+
 /** Day sets as one bitmask (Monday = bit 0), the way they are stored. */
 object Days {
     val ALL: Set<DayOfWeek> = DayOfWeek.entries.toSet()

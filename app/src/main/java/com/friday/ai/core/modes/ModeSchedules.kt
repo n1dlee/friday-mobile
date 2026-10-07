@@ -2,6 +2,7 @@ package com.friday.ai.core.modes
 
 import com.friday.ai.data.local.dao.ModeScheduleDao
 import com.friday.ai.data.local.dao.UserPreferenceDao
+import com.friday.ai.data.local.entity.ModeEventEntity
 import com.friday.ai.data.local.entity.ModeRunEntity
 import com.friday.ai.data.local.entity.ModeScheduleEntity
 import com.friday.ai.data.local.entity.UserPreferenceEntity
@@ -53,8 +54,36 @@ class ModeSchedules(
     suspend fun clear(modeId: String) {
         val before = ids()
         dao.deleteForMode(modeId)
+        dao.deleteEventsForMode(modeId)
         onChanged(all(), before)
     }
+
+    // --- events: Bluetooth, Wi-Fi, charger -----------------------------------
+
+    suspend fun events(): List<ModeEvent> = dao.events().mapNotNull(::event)
+
+    fun observeEvents(): Flow<List<ModeEvent>> = dao.observeEvents().map { rows -> rows.mapNotNull(::event) }
+
+    /** One per mode, trigger and direction: a new device replaces the old one. */
+    suspend fun addEvent(
+        modeId: String,
+        trigger: Trigger,
+        value: String,
+        onConnect: Boolean,
+        exit: Boolean
+    ): ModeEvent {
+        val existing = events().firstOrNull {
+            it.modeId == modeId && it.trigger == trigger && it.onConnect == onConnect && it.exit == exit
+        }
+        val e = ModeEvent(existing?.id ?: UUID.randomUUID().toString(), modeId, trigger, value, onConnect, exit)
+        dao.upsertEvent(ModeEventEntity(e.id, e.modeId, e.trigger.key, e.value, e.onConnect, e.exit))
+        return e
+    }
+
+    suspend fun deleteEvent(id: String) = dao.deleteEvent(id)
+
+    private fun event(e: ModeEventEntity): ModeEvent? =
+        Trigger.of(e.kind)?.let { ModeEvent(e.id, e.modeId, it, e.value, e.onConnect, e.exit) }
 
     suspend fun delete(id: String) {
         val before = ids()
