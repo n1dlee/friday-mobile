@@ -42,6 +42,10 @@ sealed interface CommandResult {
         data class AddTo(val rest: String) : Mode
         /** "Убери будильник из режима отдыха". */
         data class RemoveFrom(val what: String, val name: String) : Mode
+        /** "Включай режим отдыха каждый день в 23:00"; no time yet means ask for one. [days]: Monday = bit 0. */
+        data class Schedule(val id: String, val exit: Boolean, val hour: Int?, val minute: Int?, val days: Int) : Mode
+        /** "Убери расписание режима отдыха". */
+        data class Unschedule(val id: String) : Mode
     }
 
     data class OpenApp(val appName: String, val packageHint: String?) : Phone

@@ -125,6 +125,16 @@ class MigrationSchemaTest {
     }
 
     @Test
+    fun `mode schedules and runs migration matches the generated schema`() {
+        listOf("mode_schedules", "mode_runs").forEach { table ->
+            assertEquals(
+                "MIGRATION_8_9 would be rejected by Room at open time ($table)",
+                columnsOf(createSqlFor(table)), columnsOf(migrationCreateFor(table))
+            )
+        }
+    }
+
+    @Test
     fun `there is a migration for every version step`() {
         val version = latestSchema().getJSONObject("database").getInt("version")
         for (from in 1 until version) {

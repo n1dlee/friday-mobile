@@ -29,13 +29,21 @@ class ModeEngine(
     private val compile: suspend (name: String, description: String) -> ModeCompiler.Result,
     private val device: DeviceController,
     private val clock: () -> Long = System::currentTimeMillis,
-    private val now: () -> LocalDateTime = LocalDateTime::now
+    private val now: () -> LocalDateTime = LocalDateTime::now,
+    /** Schedules and run history; without them, modes simply have no timetable. */
+    private val schedules: ModeSchedules? = null
 ) {
 
     private companion object {
         /** "Отмена" this soon after creating a mode removes it. */
         const val UNDO_WINDOW_MS = 2 * 60 * 1000L
         const val MAX_NAME_WORDS = 4
+
+        /**
+         * Steps that act for the owner towards other people. A mode that has
+         * one never starts on a timer, with nobody there to stop it.
+         */
+        val NEEDS_OWNER = setOf("call", "send_message", "reply_message", "mail")
 
         /** At least half of "убери …"'s words must be in a step for it to be that step. */
         const val MIN_STEP_MATCH = 0.5
@@ -54,6 +62,12 @@ class ModeEngine(
     @Volatile
     private var proposal: Proposal? = null
 
+    /** "Включать каждый день в 23:00?" after a habit was noticed, waiting for "да". */
+    private data class HabitOffer(val modeId: String, val time: java.time.LocalTime, val at: Long)
+
+    @Volatile
+    private var habit: HabitOffer? = null
+
     private val correctionLead = Regex(
         "^(?:нет|не то|не так|неправильно|не это|я не это|no|not that|wrong)[,.!\\s]+(?:а\\s+|лучше\\s+|instead\\s+)?"
     )
@@ -63,21 +77,42 @@ class ModeEngine(
      * when the name is one of the owner's modes: "включи режим полёта" is a
      * system setting, not a mode Friday doesn't have.
      */
-    fun route(text: String): CommandResult.Mode? {
-        correction(text)?.let { return it }
-        lastCreated?.let { (id, at) ->
-            if (clock() - at <= UNDO_WINDOW_MS && LearnedCommands.isCorrection(text)) {
-                lastCreated = null
-                return CommandResult.Mode.CancelCreated(id)
+    fun route(text: String): CommandResult.Mode? =
+        correction(text) ?: scheduleRequest(text) ?: cancelRequest(text) ?: request(text)
+
+    /** "Отмена" / "нет, не так" just after creating a mode. */
+    private fun cancelRequest(text: String): CommandResult.Mode? {
+        val (id, at) = lastCreated ?: return null
+        if (clock() - at > UNDO_WINDOW_MS || !LearnedCommands.isCorrection(text)) return null
+        lastCreated = null
+        return CommandResult.Mode.CancelCreated(id)
+    }
+
+    private fun request(text: String): CommandResult.Mode? = when (val request = ModePhrases.parse(text)) {
+        is CommandResult.Mode.Run -> request.takeIf { store.find(it.name) != null }
+        is CommandResult.Mode.Exit -> request.takeIf { store.find(it.name) != null }
+        is CommandResult.Mode.Describe -> request.takeIf { store.find(it.name) != null }
+        is CommandResult.Mode.AddTo -> request.takeIf { split(it.rest) != null }
+        is CommandResult.Mode.RemoveFrom -> request.takeIf { store.find(it.name) != null }
+        else -> request
+    }
+
+    private fun scheduleRequest(text: String): CommandResult.Mode? {
+        if (schedules == null) return null
+        return when (val r = SchedulePhrases.parse(text, now())) {
+            null -> null
+            is SchedulePhrases.Request.Set -> nameAtStart(r.rest)?.let {
+                CommandResult.Mode.Schedule(it.id, r.exit, r.time?.hour, r.time?.minute, Days.mask(r.days))
             }
+            is SchedulePhrases.Request.Clear -> nameAtStart(r.rest)?.let { CommandResult.Mode.Unschedule(it.id) }
         }
-        return when (val request = ModePhrases.parse(text)) {
-            is CommandResult.Mode.Run -> request.takeIf { store.find(it.name) != null }
-            is CommandResult.Mode.Exit -> request.takeIf { store.find(it.name) != null }
-            is CommandResult.Mode.Describe -> request.takeIf { store.find(it.name) != null }
-            is CommandResult.Mode.AddTo -> request.takeIf { split(it.rest) != null }
-            is CommandResult.Mode.RemoveFrom -> request.takeIf { store.find(it.name) != null }
-            else -> request
+    }
+
+    /** The saved mode whose whole name the words begin with, longest first. */
+    private fun nameAtStart(rest: String): Mode? {
+        val words = rest.trim().split(' ').filter { it.isNotBlank() }
+        return (minOf(MAX_NAME_WORDS, words.size) downTo 1).firstNotNullOfOrNull { k ->
+            store.find(words.take(k).joinToString(" "), spare = 0)
         }
     }
 
@@ -92,7 +127,10 @@ class ModeEngine(
     }
 
     /** "Да" / "нет" to "запомнить это для режима …?"; null when nothing is asked or it isn't an answer. */
-    suspend fun answerPending(text: String, russian: Boolean): String? {
+    suspend fun answerPending(text: String, russian: Boolean): String? =
+        answerHabit(text, russian) ?: answerProposal(text, russian)
+
+    private suspend fun answerProposal(text: String, russian: Boolean): String? {
         val p = proposal?.takeIf { clock() - it.at <= UNDO_WINDOW_MS } ?: return null
         val say = Say(russian)
         return when (com.friday.ai.core.mail.Confirmation.classify(text)) {
@@ -134,6 +172,8 @@ class ModeEngine(
             is CommandResult.Mode.AddTo -> add(request.rest, say)
             is CommandResult.Mode.RemoveFrom -> store.find(request.name)?.let { remove(it, request.what, say) }
                 ?: missing(request.name, say)
+            is CommandResult.Mode.Schedule -> schedule(request, say)
+            is CommandResult.Mode.Unschedule -> unschedule(request.id, say)
             CommandResult.Mode.ListAll -> list(say)
         }
     }
@@ -172,14 +212,109 @@ class ModeEngine(
         }
     }
 
-    private suspend fun run(mode: Mode, say: Say, runner: suspend (CommandResult) -> String): String {
-        val (messages, undo) = carryOut(mode.steps, say, runner)
+    private suspend fun run(
+        mode: Mode,
+        say: Say,
+        runner: suspend (CommandResult) -> String,
+        automatic: Boolean = false,
+        steps: List<ActionEnvelope> = mode.steps
+    ): String {
+        val (messages, undo) = carryOut(steps, say, runner)
+        schedules?.logRun(mode.id, clock(), automatic)
         lastRun = mode.id to clock()
         // Already on: the phone's state from before the first run is what "выключи" must restore.
         store.put(
             mode.copy(undo = mode.undo ?: undo, lastRunAt = clock(), runCount = mode.runCount + 1)
         )
-        return say("Режим ${mode.name}. ", "${mode.name} mode. ") + sentences(messages)
+        val reply = say("Режим ${mode.name}. ", "${mode.name} mode. ") + sentences(messages)
+        return if (automatic) reply else reply + habitQuestion(mode, say)
+    }
+
+    // --- schedules ---------------------------------------------------------
+
+    private suspend fun schedule(request: CommandResult.Mode.Schedule, say: Say): String {
+        val mode = store.byId(request.id) ?: return say("Этого режима уже нет.", "That mode is gone.")
+        val timetable = schedules ?: return say("Расписания недоступны.", "Schedules aren't available.")
+        val verb = if (request.exit) say("выключать", "turn off") else say("включать", "turn on")
+        scheduleRefusal(request, mode, verb, say)?.let { return it }
+        val time = java.time.LocalTime.of(request.hour ?: 0, request.minute ?: 0)
+        val s = timetable.set(mode.id, request.exit, time, Days.of(request.days))
+        return say("Буду $verb режим ${mode.name} ", "I'll $verb ${mode.name} mode ") +
+            ScheduleMath.describe(s.days, s.time, say.russian) + "."
+    }
+
+    /** Why [request] can't be scheduled as it is: no time said, or a mode that acts towards people. */
+    private fun scheduleRefusal(request: CommandResult.Mode.Schedule, mode: Mode, verb: String, say: Say): String? = when {
+        request.hour == null || request.minute == null -> say(
+            "Во сколько $verb режим ${mode.name}? Скажите целиком, например: «$verb режим ${mode.name} каждый день в 23:00».",
+            "At what time should I $verb ${mode.name} mode? For example: \"$verb ${mode.name} mode every day at 11 pm\"."
+        )
+        !request.exit && mode.steps.any { it.tool in NEEDS_OWNER } -> say(
+            "В режиме ${mode.name} есть звонок или сообщение — сам по себе, без вас, такой режим я не запускаю.",
+            "${mode.name} mode calls or messages someone, so I won't start it on a timer with nobody there."
+        )
+        else -> null
+    }
+
+    private suspend fun unschedule(id: String, say: Say): String {
+        val mode = store.byId(id) ?: return say("Этого режима уже нет.", "That mode is gone.")
+        schedules?.clear(id)
+        return say("Режим ${mode.name} больше не включается по расписанию.", "${mode.name} mode no longer runs on a schedule.")
+    }
+
+    /**
+     * A schedule's alarm went off. Runs (or ends) the mode without the steps
+     * that need the owner there, and returns what happened, for a quiet
+     * notification; null when there was nothing to do.
+     */
+    suspend fun fire(scheduleId: String, russian: Boolean, runner: suspend (CommandResult) -> String): String? {
+        val s = schedules?.byId(scheduleId) ?: return null
+        val mode = store.byId(s.modeId)
+        if (mode == null) {
+            schedules.delete(s.id)
+            return null
+        }
+        schedules.fired(s, clock())
+        val say = Say(russian)
+        return when {
+            s.exit && mode.active -> exit(mode, say, runner)
+            s.exit -> null
+            else -> run(mode, say, runner, automatic = true, steps = mode.steps.filterNot { it.tool in NEEDS_OWNER })
+        }
+    }
+
+    /**
+     * After a run by hand: if the owner keeps turning this mode on around the
+     * same time, offer to do it by itself. Once per mode, whatever the answer.
+     */
+    private suspend fun habitQuestion(mode: Mode, say: Say): String {
+        val s = schedules ?: return ""
+        if (s.forMode(mode.id).isNotEmpty() || s.wasSuggested(mode.id)) return ""
+        val time = Habits.suggest(s.manualRuns(mode.id, clock())) ?: return ""
+        s.markSuggested(mode.id)
+        habit = HabitOffer(mode.id, time, clock())
+        val at = "%d:%02d".format(time.hour, time.minute)
+        return say(
+            " Вы включаете его около $at уже не первый день — включать каждый день в $at само?",
+            " You've been turning it on around $at for a few days — start it every day at $at by itself?"
+        )
+    }
+
+    private suspend fun answerHabit(text: String, russian: Boolean): String? {
+        val offer = habit?.takeIf { clock() - it.at <= UNDO_WINDOW_MS } ?: return null
+        val say = Say(russian)
+        return when (com.friday.ai.core.mail.Confirmation.classify(text)) {
+            com.friday.ai.core.mail.Confirmation.Answer.OTHER -> null
+            com.friday.ai.core.mail.Confirmation.Answer.NO -> {
+                habit = null
+                say("Хорошо, только когда скажете.", "OK, only when you say so.")
+            }
+            com.friday.ai.core.mail.Confirmation.Answer.YES -> {
+                habit = null
+                val mode = store.byId(offer.modeId) ?: return say("Этого режима уже нет.", "That mode is gone.")
+                schedule(CommandResult.Mode.Schedule(mode.id, false, offer.time.hour, offer.time.minute, Days.mask(Days.ALL)), say)
+            }
+        }
     }
 
     /**
@@ -317,6 +452,7 @@ class ModeEngine(
 
     private suspend fun delete(mode: Mode, say: Say): String {
         store.delete(mode.id)
+        schedules?.clear(mode.id)
         val note = if (mode.active) {
             say(" Настройки, которые он менял, оставила как есть.", " The settings it changed stay as they are.")
         } else {

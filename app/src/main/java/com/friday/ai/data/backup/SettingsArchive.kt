@@ -5,6 +5,7 @@ import com.friday.ai.data.local.entity.ErrandEntity
 import com.friday.ai.data.local.entity.InteractionEntity
 import com.friday.ai.data.local.entity.MemoryEntity
 import com.friday.ai.data.local.entity.ModeEntity
+import com.friday.ai.data.local.entity.ModeScheduleEntity
 import com.friday.ai.data.local.entity.SessionSummaryEntity
 import com.friday.ai.data.local.entity.UserPreferenceEntity
 import kotlinx.serialization.Serializable
@@ -58,7 +59,8 @@ class SettingsArchive(
         val interactions: List<InteractionEntity> = emptyList(),
         val summaries: List<SessionSummaryEntity> = emptyList(),
         /** Added in 0.12; files from 0.11 simply have none. */
-        val modes: List<ModeEntity> = emptyList()
+        val modes: List<ModeEntity> = emptyList(),
+        val schedules: List<ModeScheduleEntity> = emptyList()
     )
 
     /** Why a file could not be opened, each with its own message for the owner. */

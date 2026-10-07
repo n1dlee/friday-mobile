@@ -43,6 +43,8 @@
         tools:ignore="ProtectedPermissions" />
     <!-- Reading whether Wi-Fi / Bluetooth are already on, to say so instead of opening their panel. -->
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <!-- Modes on a schedule: alarms are re-booked after a reboot. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
 
     <application
@@ -79,6 +81,17 @@
             android:name=".service.TimeZoneReceiver"
             android:exported="false">
             <intent-filter>
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.TIME_SET" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Mode schedules: fires a mode at its time, re-books after reboot or a clock change. -->
+        <receiver
+            android:name=".service.ModeAlarmReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.TIMEZONE_CHANGED" />
                 <action android:name="android.intent.action.TIME_SET" />
             </intent-filter>

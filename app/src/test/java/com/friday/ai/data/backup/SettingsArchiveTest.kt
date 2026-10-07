@@ -230,6 +230,7 @@ private class FakeBackupDao : BackupDao() {
     override suspend fun interactions() = interactionsTable.toList()
     override suspend fun summaries() = summariesTable.toList()
     override suspend fun modes() = modesTable.toList()
+    override suspend fun schedules() = emptyList<com.friday.ai.data.local.entity.ModeScheduleEntity>()
 
     override suspend fun clearPreferences() = prefs.clear()
     override suspend fun clearMemories() = memoriesTable.clear()
@@ -238,6 +239,7 @@ private class FakeBackupDao : BackupDao() {
     override suspend fun clearInteractions() = interactionsTable.clear()
     override suspend fun clearSummaries() = summariesTable.clear()
     override suspend fun clearModes() = modesTable.clear()
+    override suspend fun clearSchedules() = Unit
 
     override suspend fun insertPreferences(rows: List<UserPreferenceEntity>) { prefs += rows }
     override suspend fun insertMemories(rows: List<MemoryEntity>) { memoriesTable += rows }
@@ -246,6 +248,7 @@ private class FakeBackupDao : BackupDao() {
     override suspend fun insertInteractions(rows: List<InteractionEntity>) { interactionsTable += rows }
     override suspend fun insertSummaries(rows: List<SessionSummaryEntity>) { summariesTable += rows }
     override suspend fun insertModes(rows: List<com.friday.ai.data.local.entity.ModeEntity>) { modesTable += rows }
+    override suspend fun insertSchedules(rows: List<com.friday.ai.data.local.entity.ModeScheduleEntity>) = Unit
 
     /** The preferences table seen through the ordinary DAO. */
     fun asPreferenceDao() = object : UserPreferenceDao {

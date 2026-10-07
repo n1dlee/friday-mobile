@@ -144,6 +144,32 @@ object Migrations {
         }
     }
 
+    /** v9: modes on a schedule, and the history habits are read from. */
+    val MIGRATION_8_9 = object : Migration(8, 9) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `mode_schedules` (" +
+                    "`id` TEXT NOT NULL, " +
+                    "`modeId` TEXT NOT NULL, " +
+                    "`exit` INTEGER NOT NULL, " +
+                    "`hour` INTEGER NOT NULL, " +
+                    "`minute` INTEGER NOT NULL, " +
+                    "`days` INTEGER NOT NULL, " +
+                    "`lastFiredAt` INTEGER NOT NULL, " +
+                    "PRIMARY KEY(`id`))"
+            )
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_mode_schedules_modeId` ON `mode_schedules` (`modeId`)")
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `mode_runs` (" +
+                    "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`modeId` TEXT NOT NULL, " +
+                    "`at` INTEGER NOT NULL, " +
+                    "`automatic` INTEGER NOT NULL)"
+            )
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_mode_runs_modeId` ON `mode_runs` (`modeId`)")
+        }
+    }
+
     val ALL: Array<Migration> = arrayOf(
         MIGRATION_1_2,
         MIGRATION_2_3,
@@ -151,6 +177,7 @@ object Migrations {
         MIGRATION_4_5,
         MIGRATION_5_6,
         MIGRATION_6_7,
-        MIGRATION_7_8
+        MIGRATION_7_8,
+        MIGRATION_8_9
     )
 }

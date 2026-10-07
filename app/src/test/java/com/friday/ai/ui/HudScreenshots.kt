@@ -148,7 +148,13 @@ class HudScreenshots {
         com.friday.ai.ui.modes.ModesLayout(
             listOf(rest, sad),
             status = "Режим отдыха. Полностью беззвучно. «Не беспокоить» включён. Яркость 5%.",
-            busy = null, onNavigateBack = {}, onRun = {}, onStop = {}, onDelete = {}
+            busy = null, onNavigateBack = {}, onRun = {}, onStop = {}, onDelete = {},
+            schedules = mapOf(
+                "1" to listOf(
+                    com.friday.ai.core.modes.Schedule("a", "1", false, java.time.LocalTime.of(23, 0), com.friday.ai.core.modes.Days.ALL),
+                    com.friday.ai.core.modes.Schedule("b", "1", true, java.time.LocalTime.of(7, 0), com.friday.ai.core.modes.Days.WEEKDAYS)
+                )
+            )
         )
     }
 
