@@ -12,14 +12,32 @@ import com.friday.ai.service.SpeakerEmbedder
  * assistant that answers nobody is a far worse failure than one that
  * occasionally answers the wrong person.
  */
-class SpeakerGate(private val embedder: SpeakerEmbedder) {
+class SpeakerGate(
+    private val embedder: SpeakerEmbedder,
+    private val clock: () -> Long = android.os.SystemClock::elapsedRealtime
+) {
 
     private companion object {
         const val TAG = "SpeakerGate"
 
         /** How much below the profile's threshold a lone wake word may score. */
         const val WAKE_SLACK = 0.06f
+
+        /**
+         * How much below it a command may score right after the owner's
+         * wake word passed. The owner was recognised seconds ago and is
+         * plainly the one answering "Слушаю"; scoring the command as strictly
+         * as a stranger's turned them away — "Не узнала голос" on the second
+         * try, after the first had already failed.
+         */
+        const val COMMAND_SLACK_AFTER_WAKE = 0.1f
+
+        /** How long a recognised wake word vouches for what follows. */
+        const val WAKE_TRUST_MS = 30_000L
     }
+
+    @Volatile
+    private var wakeVerifiedAt: Long? = null
 
     @Volatile
     var profile: VoiceProfile.Profile? = null
@@ -39,8 +57,11 @@ class SpeakerGate(private val embedder: SpeakerEmbedder) {
      * part is checked, like the enrolment; and a single short word scores a
      * little lower than a phrase, so it gets a little slack.
      */
-    fun admitsWake(audio: FloatArray): Boolean =
-        profile?.let { isOwner(it, com.friday.ai.core.VoiceTrim.speech(audio), "wake word", WAKE_SLACK) } ?: true
+    fun admitsWake(audio: FloatArray): Boolean {
+        val passed = profile?.let { isOwner(it, com.friday.ai.core.VoiceTrim.speech(audio), "wake word", WAKE_SLACK) }
+        if (passed == true) wakeVerifiedAt = clock()
+        return passed ?: true
+    }
 
     /**
      * The check applied to what is said after the wake word, or null when
@@ -49,7 +70,11 @@ class SpeakerGate(private val embedder: SpeakerEmbedder) {
      */
     fun commandCheck(): ((FloatArray) -> Boolean)? {
         val p = profile?.takeIf { it.coversCommands } ?: return null
-        return { audio -> isOwner(p, com.friday.ai.core.VoiceTrim.speech(audio), "command") }
+        return { audio ->
+            val vouched = wakeVerifiedAt?.let { clock() - it < WAKE_TRUST_MS } == true
+            val slack = if (vouched) COMMAND_SLACK_AFTER_WAKE else 0f
+            isOwner(p, com.friday.ai.core.VoiceTrim.speech(audio), "command", slack)
+        }
     }
 
     private fun isOwner(p: VoiceProfile.Profile, audio: FloatArray, what: String, slack: Float = 0f): Boolean {

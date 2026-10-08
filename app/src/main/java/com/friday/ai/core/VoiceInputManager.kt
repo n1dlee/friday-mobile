@@ -64,6 +64,7 @@ class VoiceInputManager(
                 return@launch
             }
 
+            transcriber.language = if ((prefDao.get("prefer_russian") ?: "true") == "true") "ru" else null
             // No speaker check here: pressing the mic button in the open app
             // is already proof of who is asking.
             val result = transcriber.recordAndTranscribe(apiKey)
@@ -74,8 +75,9 @@ class VoiceInputManager(
         }
     }
 
+    /** Ends the recording now; what was said so far is transcribed. */
     fun stopListening() {
-        _isListening.value = false
+        transcriber.requestStop()
     }
 
     fun destroy() {
