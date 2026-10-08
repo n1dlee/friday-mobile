@@ -34,9 +34,12 @@ class AlarmSetter(
 
     suspend fun set(time: LocalTime, label: String?, russian: Boolean): String {
         val expected = AlarmRequest.nextOccurrence(time, now()).atZone(zone()).toInstant().toEpochMilli()
-        if (!send(time, label, skipUi = true)) {
-            return if (russian) "На телефоне нет приложения Часы, которое принимает будильники."
+        when (send(time, label, skipUi = true)) {
+            Sent.NO_APP -> return if (russian) "На телефоне нет приложения Часы, которое принимает будильники."
             else "There's no Clock app that accepts alarms on this phone."
+            Sent.REFUSED -> return if (russian) "Часы не разрешили Пятнице поставить будильник."
+            else "The Clock app didn't allow Friday to set the alarm."
+            Sent.OK -> Unit
         }
 
         var check = AlarmRequest.Check.MISSING
@@ -58,7 +61,10 @@ class AlarmSetter(
     private fun nextAlarm(): Long? =
         (context.getSystemService(Context.ALARM_SERVICE) as AlarmManager).nextAlarmClock?.triggerTime
 
-    private fun send(time: LocalTime, label: String?, skipUi: Boolean): Boolean = try {
+    /** Not having a Clock app and being refused by it are different answers. */
+    private enum class Sent { OK, NO_APP, REFUSED }
+
+    private fun send(time: LocalTime, label: String?, skipUi: Boolean): Sent = try {
         context.startActivity(
             Intent(AlarmClock.ACTION_SET_ALARM)
                 .putExtra(AlarmClock.EXTRA_HOUR, time.hour)
@@ -67,9 +73,12 @@ class AlarmSetter(
                 .apply { label?.let { putExtra(AlarmClock.EXTRA_MESSAGE, it) } }
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         )
-        true
-    } catch (e: Exception) {
+        Sent.OK
+    } catch (e: android.content.ActivityNotFoundException) {
+        Log.e(TAG, "No Clock app for alarms: ${e.message}")
+        Sent.NO_APP
+    } catch (e: SecurityException) {
         Log.e(TAG, "Clock refused the alarm: ${e.message}")
-        false
+        Sent.REFUSED
     }
 }

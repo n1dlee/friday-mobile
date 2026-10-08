@@ -25,8 +25,8 @@ android {
         applicationId = "com.friday.ai"
         minSdk = 26
         targetSdk = 35
-        versionCode = 9
-        versionName = "0.14.1"
+        versionCode = 10
+        versionName = "0.14.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
