@@ -202,3 +202,22 @@ class SpeakerGateTrustTest {
         assertFalse(gate.commandCheck()!!(audio))
     }
 }
+
+class BackgroundSpeechTest {
+
+    @Test
+    fun `talk far quieter than the owner does not keep the turn open`() {
+        val e = SpeechEndpointer(CEILING)
+        // The owner, then a video across the room, 24 dB under them.
+        assertEquals(End.FINISHED, e.feed(join(room(800, 100), voice(1500, 3000), voice(4000, 180))))
+        assertTrue(e.elapsedMs < 800 + 1500 + 1000)
+    }
+
+    @Test
+    fun `the owner speaking softer is still the owner`() {
+        val e = SpeechEndpointer(CEILING)
+        e.feed(join(room(800, 100), voice(1200, 3000), voice(1200, 900), voice(600, 3000), room(2000, 100)))
+        assertEquals(End.FINISHED, e.end)
+        assertTrue(e.elapsedMs > 800 + 3000)
+    }
+}

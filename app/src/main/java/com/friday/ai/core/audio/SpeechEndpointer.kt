@@ -25,6 +25,10 @@ import kotlin.math.sqrt
  *    level to count, so soft word endings don't look like silence.
  *  - **Longer speech, longer patience.** A quick command ends after 0.8 s of
  *    quiet; after a few seconds of talking, a pause to think gets 1.4 s.
+ *  - **The owner's own level.** Sound far quieter than the owner's voice — a
+ *    video, a television, people talking across the room — does not keep
+ *    the turn open. On the phone, a command was followed by ten seconds of
+ *    someone else's words before this.
  */
 class SpeechEndpointer(
     /** The calibrated threshold: speech never has to be louder than this. */
@@ -69,6 +73,16 @@ class SpeechEndpointer(
         /** Once speaking, this share of the opening level still counts as voice. */
         private const val HOLD_RATIO = 0.6
 
+        /**
+         * Sound below this share of the owner's level (−23 dB) is someone
+         * else, not them. Replaying the owner's own voice notes, −16 dB cut
+         * five of 45 short in their quieter stretches; −23 dB kept 99%.
+         */
+        private const val OWN_VOICE_RATIO = 0.07
+
+        /** How quickly the owner's level follows their voice. */
+        private const val LEVEL_SMOOTHING = 0.1
+
         /** The room's floor is the quietest 200 ms of the last 3 s. */
         private const val FLOOR_WINDOW = 10
         private const val FLOOR_HISTORY = 150
@@ -93,6 +107,10 @@ class SpeechEndpointer(
     private var totalMs = 0L
     private var silenceMs = 0L
     private var voicedRun = 0
+    private var runLevel = 0.0
+
+    /** How loud the owner speaks in this turn; 0 until they start. */
+    private var voiceLevel = 0.0
     private val history = ArrayDeque<Double>()
     private val leftover = ShortArray(FRAME)
     private var leftoverCount = 0
@@ -133,7 +151,7 @@ class SpeechEndpointer(
         history.addLast(level)
         if (history.size > FLOOR_HISTORY) history.removeFirst()
         totalMs += FRAME_MS
-        if (speechStarted) speaking(level > open * HOLD_RATIO) else waiting(level > open)
+        if (speechStarted) speaking(level, open) else waiting(level, level > open)
         end = end ?: when {
             totalMs >= maxMs -> End.MAX_DURATION
             !speechStarted && totalMs >= START_TIMEOUT_MS -> End.NO_SPEECH
@@ -142,16 +160,23 @@ class SpeechEndpointer(
         }
     }
 
-    private fun waiting(voiced: Boolean) {
+    private fun waiting(level: Double, voiced: Boolean) {
         voicedRun = if (voiced) voicedRun + 1 else 0
+        runLevel = if (voiced) runLevel + level else 0.0
         if (voicedRun >= START_FRAMES) {
             speechStarted = true
             speechMs += voicedRun * FRAME_MS
             silenceMs = 0
+            voiceLevel = runLevel / voicedRun
         }
     }
 
-    private fun speaking(voiced: Boolean) {
+    private fun speaking(level: Double, open: Double) {
+        // Only sound near the owner's own level teaches it; background must not drag it down.
+        if (level > open && level > voiceLevel / 2) {
+            voiceLevel = if (voiceLevel == 0.0) level else voiceLevel + (level - voiceLevel) * LEVEL_SMOOTHING
+        }
+        val voiced = level > maxOf(open * HOLD_RATIO, voiceLevel * OWN_VOICE_RATIO)
         if (voiced) {
             speechMs += FRAME_MS
             silenceMs = 0
