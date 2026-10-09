@@ -3,6 +3,7 @@ package com.friday.ai.service.voice
 import android.os.SystemClock
 import android.util.Log
 import com.friday.ai.agent.FridayAgent
+import com.friday.ai.agent.PromptBudget
 import com.friday.ai.core.ConversationControl
 import com.friday.ai.core.CorrectionDetector
 import com.friday.ai.core.SentenceChunker
@@ -46,7 +47,8 @@ class SpokenAnswer(
         const val OVERLAY_REFRESH_MS = 120L
 
         /** Earlier exchanges sent with the question, for context. */
-        const val HISTORY_TURNS = 10
+        /** Earlier exchanges sent along; each costs tokens on every round of every answer. */
+        const val HISTORY_TURNS = 5
 
         const val VOICE_RULE =
             "\n\nYou are Friday, a voice assistant. Answer in ONE short, natural sentence — this is a spoken " +
@@ -61,9 +63,11 @@ class SpokenAnswer(
             val system = prompts.build(AssistantMode.DEFAULT, memory.buildMemoryContext(), withTools = true) +
                 VOICE_RULE
             add(ApiMessage(role = "system", content = system))
-            history.forEach {
-                add(ApiMessage(role = "user", content = it.userInput))
-                add(ApiMessage(role = "assistant", content = it.assistantResponse))
+            history.forEachIndexed { i, turn ->
+                // Two messages per turn; the latest turn is kept whole.
+                val fromEnd = (history.size - i) * 2
+                add(ApiMessage(role = "user", content = PromptBudget.older(turn.userInput, fromEnd)))
+                add(ApiMessage(role = "assistant", content = PromptBudget.older(turn.assistantResponse, fromEnd - 1)))
             }
             add(ApiMessage(role = "user", content = userText))
         }

@@ -42,12 +42,35 @@ class ToolKitTest {
             .forEach { assertEquals(it, ToolKit.Kit.LIGHT, ToolKit.forText(it)) }
     }
 
+    private fun offered(text: String) = AgentTools.definitions(ToolKit.forText(text)).map { it.function.name }.toSet()
+
     @Test
-    fun `anything that looks like doing something gets the full kit`() {
-        listOf(
-            "закинь будильник на полвосьмого", "включи Imagine Dragons", "turn it up",
-            "напиши маме, что опоздаю", "сделай погромче и открой селфи-камеру"
-        ).forEach { assertEquals(it, ToolKit.Kit.FULL, ToolKit.forText(it)) }
+    fun `a request gets the tools it needs`() {
+        mapOf(
+            "закинь будильник на полвосьмого" to listOf("set_alarm"),
+            "включи Imagine Dragons" to listOf("play"),
+            "turn it up" to listOf("phone_control"),
+            "напиши маме, что опоздаю" to listOf("send_message"),
+            "сделай погромче и открой селфи-камеру" to listOf("phone_control", "camera"),
+            "поставь будильник на семь и напиши маме, что опоздаю" to listOf("set_alarm", "send_message"),
+            "есть непрочитанные сообщения?" to listOf("read_messages"),
+            "какая погода завтра" to listOf("weather"),
+            "запусти режим отдыха" to listOf("run_mode")
+        ).forEach { (text, tools) -> assertTrue("$text: ${offered(text)}", offered(text).containsAll(tools)) }
+    }
+
+    @Test
+    fun `a focused kit can always ask for the rest`() {
+        assertTrue(ToolKit.ESCALATE in offered("поставь будильник на семь"))
+        assertTrue(ToolKit.forText("поставь будильник на семь") is ToolKit.Kit.Focused)
+    }
+
+    @Test
+    fun `a focused kit is a fraction of the full one`() {
+        val list = kotlinx.serialization.builtins.ListSerializer(ToolDefinition.serializer())
+        val alarm = groqJson.encodeToString(list, AgentTools.definitions(ToolKit.forText("поставь будильник на семь")))
+        val full = groqJson.encodeToString(list, AgentTools.definitions)
+        assertTrue("alarm ${alarm.length} vs full ${full.length}", alarm.length * 3 < full.length)
     }
 
     @Test
@@ -199,5 +222,17 @@ class SourceLabelTest {
         assertEquals("команда", sourceLabel(CommandResult.ToggleFlashlight, learned = false, russian = true))
         assertEquals("команда · выучена", sourceLabel(CommandResult.SetAlarm(7, 30, null), learned = true, russian = true))
         assertEquals("AI", sourceLabel(CommandResult.ChatMessage("hi"), learned = false, russian = false))
+    }
+}
+
+class PromptBudgetTest {
+
+    @Test
+    fun `the last exchange goes whole, older long messages are cut`() {
+        val long = "а".repeat(2000)
+        assertEquals(long, PromptBudget.older(long, fromEnd = 1))
+        assertEquals(long, PromptBudget.older(long, fromEnd = 2))
+        assertEquals(PromptBudget.OLDER_CHARS + 1, PromptBudget.older(long, fromEnd = 3).length)
+        assertEquals("коротко", PromptBudget.older("коротко", fromEnd = 9))
     }
 }

@@ -1,6 +1,7 @@
 package com.friday.ai.data.repository
 
 import com.friday.ai.agent.FridayAgent
+import com.friday.ai.agent.PromptBudget
 import com.friday.ai.core.SystemPromptBuilder
 import com.friday.ai.data.local.dao.ChatMessageDao
 import com.friday.ai.data.local.dao.ChatSessionSummary
@@ -113,14 +114,15 @@ class AssistantRepositoryImpl(
     ): List<ApiMessage> = buildList {
         add(ApiMessage(role = "system", content = promptBuilder.build(mode, memoryContext, withTools = true)))
 
-        history.takeLast(20).forEach { msg ->
+        val recent = history.takeLast(PromptBudget.CHAT_HISTORY)
+        recent.forEachIndexed { i, msg ->
             add(ApiMessage(
                 role = when (msg.role) {
                     MessageRole.USER -> "user"
                     MessageRole.ASSISTANT -> "assistant"
                     MessageRole.SYSTEM -> "system"
                 },
-                content = msg.content
+                content = PromptBudget.older(msg.content, fromEnd = recent.size - i)
             ))
         }
 

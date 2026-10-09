@@ -80,9 +80,6 @@ object AgentTools {
         "selfie" to CameraMode.SELFIE, "open" to CameraMode.JUST_OPEN
     )
 
-    /** What a plain conversation needs: looking things up, arithmetic, and a way to ask for more. */
-    private val LIGHT_TOOLS = setOf("web_search", "calculate")
-
     private const val MAX_DAY_OFFSET = 2
     private const val HOURS_PER_DAY = 24
     private const val MINUTES_PER_HOUR = 60
@@ -211,7 +208,7 @@ object AgentTools {
         }
     )
 
-    /** Asks for the full set; offered only with the light kit. */
+    /** Asks for the full set; offered with the light kit. */
     private val escalate = tool(
         ToolKit.ESCALATE,
         "Call this FIRST if the user wants anything done on the phone — alarms, timers, calls, messages, music, " +
@@ -219,15 +216,24 @@ object AgentTools {
             "The phone's tools are then given to you. Never say you cannot do a phone action without calling this."
     ) {}
 
+    /** The same, with a focused kit: only for what the offered tools don't cover. */
+    private val escalateFromFocused = tool(
+        ToolKit.ESCALATE,
+        "Call this only if the user wants something done on the phone that none of the other tools covers; " +
+            "all the phone's tools are then given to you. Never say you cannot do a phone action without calling this."
+    ) {}
+
     /**
-     * The tools for [kit]; the light one is a few hundred tokens instead of
+     * The tools for [kit]: a focused kit is a few hundred tokens instead of
      * two thousand. With [capabilities], tools that can't work right now
      * (Gmail not connected, no notification access…) are left out entirely.
      */
     fun definitions(kit: ToolKit.Kit, capabilities: FridayCapabilities? = null): List<ToolDefinition> {
-        val kitTools = when (kit) {
-            ToolKit.Kit.FULL -> definitions
-            ToolKit.Kit.LIGHT -> definitions.filter { it.function.name in LIGHT_TOOLS } + escalate
+        val names = ToolKit.names(kit)
+        val kitTools = when {
+            names == null -> definitions
+            kit == ToolKit.Kit.LIGHT -> definitions.filter { it.function.name in names } + escalate
+            else -> definitions.filter { it.function.name in names } + escalateFromFocused
         }
         return kitTools.filter { ToolRequirements.met(it.function.name, capabilities) }
     }
