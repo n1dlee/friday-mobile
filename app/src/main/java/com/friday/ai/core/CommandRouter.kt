@@ -204,17 +204,22 @@ class CommandRouter(private val now: () -> java.time.LocalDateTime = java.time.L
         "спотифай" to "com.spotify.music"
     )
 
-    fun route(input: String): CommandResult {
+    fun route(said: String): CommandResult {
+        val input = Filler.strip(said)
         val whole = routeOne(input)
         // The screen and files need the app; they are never handed to the model.
         if (whole is CommandResult.AnalyzeScreen || whole is CommandResult.AnalyzeFile) return whole
         // "Поставь будильник на 7 и включи фонарик": the patterns would carry
         // out the first half and drop the rest.
-        return when (val split = CompoundRequest.split(input, ::routeOne)) {
+        val routed = when (val split = CompoundRequest.split(input, ::routeOne)) {
             is CompoundRequest.Split.Steps -> CommandResult.Sequence(split.steps)
-            CompoundRequest.Split.Mixed -> CommandResult.ChatMessage(input.trim())
+            // "Какой уровень осадков и когда он закончится?" is one weather question, not two requests.
+            CompoundRequest.Split.Mixed ->
+                if (whole is CommandResult.Weather) whole else CommandResult.ChatMessage(input.trim())
             CompoundRequest.Split.Single -> whole
         }
+        // Talk goes to the model as it was said, lead-in and all.
+        return if (routed is CommandResult.ChatMessage) CommandResult.ChatMessage(said.trim()) else routed
     }
 
     private fun routeOne(input: String): CommandResult {
@@ -281,6 +286,7 @@ class CommandRouter(private val now: () -> java.time.LocalDateTime = java.time.L
         // "какая погода завтра" and "какая погода завтра в Москве" put them in
         // different places, and one anchored regex can't cover both cleanly.
         val dayOffset = dayOffsetOf(trimmed)
+        WeatherRequest.parse(trimmed, dayOffset)?.let { return it }
         val weatherText = if (dayOffset == 0) trimmed else stripDayWords(trimmed)
         for (p in weatherPatterns) {
             val m = p.find(weatherText) ?: continue

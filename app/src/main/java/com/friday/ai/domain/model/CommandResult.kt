@@ -125,6 +125,9 @@ sealed interface CommandResult {
 
     /** [dayOffset] 0 = now, 1 = tomorrow, 2 = day after. */
     data class Weather(val place: String?, val dayOffset: Int = 0) : Info
+
+    /** "Мой город — Геттисберг": the place weather means when none is named. */
+    data class SetHomeCity(val city: String) : Info
     data object WhatDidIMiss : Info
 
     /** "Который час": answered from the clock, not the model. */

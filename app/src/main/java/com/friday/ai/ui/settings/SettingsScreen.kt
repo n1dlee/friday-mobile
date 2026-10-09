@@ -142,6 +142,7 @@ fun SettingsScreen(
                     }
                 }
                 HudPanel("Перенос на другой телефон", index = 11) { TransferSection() }
+                LocationPanel()
                 Spacer(Modifier.height(24.dp))
             }
         }
