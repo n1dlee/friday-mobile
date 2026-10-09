@@ -1,6 +1,8 @@
 package com.friday.ai.core
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -55,6 +57,32 @@ class ConversationControlTest {
             "открой камеру",
             "поставь будильник на семь утра"
         ).forEach { assertFalse("'$it' should NOT end the chat", ConversationControl.isFarewell(it)) }
+    }
+
+    @Test
+    fun `more ways of saying goodbye`() {
+        listOf("на этом пока", "Ну, на сегодня всё.", "до связи", "можешь отдыхать", "отключайся", "we're done")
+            .forEach { assertTrue("'$it' should end the chat", ConversationControl.isFarewell(it)) }
+    }
+
+    @Test
+    fun `a goodbye at the end of a longer phrase is found, and what came before is kept`() {
+        mapOf(
+            "Отлично, работаю в фоне, на этом пока." to "Отлично, работаю в фоне",
+            "Открой камеру, ну всё, пока!" to "Открой камеру",
+            "Поставь будильник на семь. Спокойной ночи." to "Поставь будильник на семь",
+            "Set an alarm for seven, bye" to "Set an alarm for seven"
+        ).forEach { (said, request) -> assertEquals(request, ConversationControl.beforeFarewell(said)) }
+    }
+
+    @Test
+    fun `the word пока as a conjunction and thanks after a request are not goodbye`() {
+        assertNull(ConversationControl.beforeFarewell("Включи музыку, пока я готовлю"))
+        assertNull(ConversationControl.beforeFarewell("Открой камеру, спасибо"))
+        assertNull(ConversationControl.beforeFarewell("пока"))
+        assertNull(ConversationControl.beforeFarewell("Какая погода завтра?"))
+        assertFalse(ConversationControl.isFarewell("напомни до встречи купить цветы для мамы"))
+        assertFalse(ConversationControl.isFarewell("Отлично, работаю в фоне, на этом пока."))
     }
 
     @Test

@@ -90,7 +90,7 @@ class FridayAgent(
         val models = Models(settings.model, settings.backupModel)
         val said = messages.lastOrNull { it.role == "user" }?.content.orEmpty()
         val languageNote = languageNote(said)
-        // Small talk goes with the light kit; the phone's tools only when asked for.
+        // Only the tools the message is about; the rest when the model asks for them.
         var kit = ToolKit.forText(said)
         val caps = capabilities()
         val done = mutableListOf<Pair<ToolCall, Boolean>>()
@@ -101,7 +101,7 @@ class FridayAgent(
                 learnFrom(said, done)
                 return@flow
             }
-            if (kit == ToolKit.Kit.LIGHT && calls.any { it.function.name == ToolKit.ESCALATE }) {
+            if (kit != ToolKit.Kit.FULL && calls.any { it.function.name == ToolKit.ESCALATE }) {
                 // The guess was wrong: the same turn again, with the phone's tools.
                 Log.i(TAG, "Model asked for the phone's tools")
                 kit = ToolKit.Kit.FULL

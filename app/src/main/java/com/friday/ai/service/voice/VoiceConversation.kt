@@ -235,11 +235,16 @@ class VoiceConversation(
                 speakAndContinue(mine, confirmed, allowFollowUp = commands.awaitsMore())
             }
             ConversationControl.isFarewell(text) -> endConversation()
-            else -> process(mine, text, russian)
+            else -> {
+                // "Открой камеру, на этом пока": done, answered, and then quiet.
+                val request = ConversationControl.beforeFarewell(text)
+                process(mine, request ?: text, russian, last = request != null)
+            }
         }
     }
 
-    private suspend fun process(mine: Int, text: String, russian: Boolean) {
+    /** @param last the owner said goodbye after this: answer, then stop listening. */
+    private suspend fun process(mine: Int, text: String, russian: Boolean, last: Boolean = false) {
         io.notifier.update("Processing...")
         io.overlay.show(FridayOverlayManager.State.PROCESSING, "\"$text\"")
         val command = commands.route(text)
@@ -247,7 +252,8 @@ class VoiceConversation(
         val outcome = commands.execute(command, russian)
         if (outcome is CommandExecutor.Outcome.Conversation) {
             when (val r = answers.answer(outcome.text)) {
-                is SpokenAnswer.Result.Finished -> if (mine == turn) afterSpeaking(mine, r.response, r.followUp)
+                is SpokenAnswer.Result.Finished ->
+                    if (mine == turn) afterSpeaking(mine, r.response, r.followUp && !last)
                 is SpokenAnswer.Result.Failed -> if (mine == turn) speakAndContinue(mine, r.message, false)
             }
             return
@@ -255,7 +261,7 @@ class VoiceConversation(
         val reply = spokenReply(outcome)
         session.log(text, reply, command::class.simpleName)
         session.mirror(text, reply)
-        if (mine == turn) speakAndContinue(mine, reply, allowFollowUp = true)
+        if (mine == turn) speakAndContinue(mine, reply, allowFollowUp = !last)
     }
 
     /**

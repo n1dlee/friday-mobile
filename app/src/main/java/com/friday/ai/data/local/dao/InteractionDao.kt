@@ -17,7 +17,11 @@ interface InteractionDao {
     @Query("SELECT * FROM interactions WHERE commandType = :type ORDER BY timestamp DESC LIMIT :limit")
     suspend fun getByType(type: String, limit: Int = 50): List<InteractionEntity>
 
-    @Query("SELECT * FROM interactions WHERE sessionId = :sessionId ORDER BY timestamp ASC LIMIT :limit")
+    /** The session's latest [limit] exchanges, oldest first. (Was its first [limit]: a long talk lost its end.) */
+    @Query(
+        "SELECT * FROM (SELECT * FROM interactions WHERE sessionId = :sessionId " +
+            "ORDER BY timestamp DESC LIMIT :limit) ORDER BY timestamp ASC"
+    )
     suspend fun getBySession(sessionId: String, limit: Int = 20): List<InteractionEntity>
 
     @Query(
