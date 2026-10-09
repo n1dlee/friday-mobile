@@ -109,6 +109,8 @@ val appModule = module {
     single { com.friday.ai.core.people.Caller(androidContext(), get(), get(), get(), get(), get()) }
     single { com.friday.ai.service.messages.SpamCheck(get()) }
     single { com.friday.ai.service.SpeechHints(get(), get()) }
+    single { com.friday.ai.service.links.QuickLinkStore(get()) }
+    single { com.friday.ai.service.links.LinkOpener(androidContext()) }
     single { com.friday.ai.service.messages.MessengerInbox(get<com.friday.ai.service.messages.SpamCheck>()::isSpam) }
     single { com.friday.ai.service.messages.MessageSummarizer(get(), get(), get()) }
     single { com.friday.ai.service.messages.Announcer() }
@@ -182,6 +184,7 @@ val appModule = module {
         val prefs = get<com.friday.ai.data.local.dao.UserPreferenceDao>()
         com.friday.ai.command.CommandExecutor(
             get(), get(), get(), get(), get(), messages = get(), learned = get(), modes = get(),
+            links = get(), opener = get(),
             lock = {
                 val locked = keyguard?.isKeyguardLocked == true
                 // Only a profile that checks commands, not just the wake word, says it's the owner.
@@ -238,6 +241,7 @@ val appModule = module {
     single { com.friday.ai.ui.notebook.NotebookInbox() }
     viewModel { com.friday.ai.ui.settings.TransferViewModel(androidContext(), get(), get(), get()) }
     viewModel { com.friday.ai.ui.settings.LocationViewModel(get()) }
+    viewModel { com.friday.ai.ui.settings.QuickLinksViewModel(get()) }
     viewModel {
         LazuriDashboardViewModel(
             memoryDao = get(),
