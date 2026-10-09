@@ -31,21 +31,20 @@ object QuickLinks {
     private val json = Json { ignoreUnknownKeys = true }
     private val serializer = ListSerializer(QuickLink.serializer())
     private val separators = Regex("""[,;\n]+""")
-    private val nonWord = Regex("""[^\p{L}\p{N}]+""")
 
     /**
-     * The link whose phrase was said — as the whole utterance or inside it,
-     * as whole words ("давай посмотрим фильм" in "ну давай посмотрим фильм").
-     * The longest phrase wins, so a specific one beats a general one.
+     * The link whose phrase was said, as people say it ([PhraseMatch]):
+     * "давай посмотрим фильм" is also "я хочу посмотреть фильмы". The phrase
+     * with the most words said wins, so a specific one beats a general one.
      */
     fun match(said: String, links: List<QuickLink>): QuickLink? {
-        val text = " ${normalise(said)} "
-        if (text.isBlank()) return null
+        val words = PhraseMatch.core(said)
+        if (words.isEmpty()) return null
         return links
-            .flatMap { link -> link.phrases.map { normalise(it) }.filter { it.isNotEmpty() }.map { it to link } }
-            .filter { (phrase, _) -> text.contains(" $phrase ") }
-            .maxByOrNull { (phrase, _) -> phrase.length }
-            ?.second
+            .flatMap { link -> link.phrases.map { link to PhraseMatch.score(PhraseMatch.core(it), words) } }
+            .filter { (_, score) -> score > 0 }
+            .maxByOrNull { (_, score) -> score }
+            ?.first
     }
 
     /** "фильм, давай посмотрим фильм" → the two phrases. */
@@ -68,7 +67,4 @@ object QuickLinks {
     fun decode(stored: String?): List<QuickLink> =
         stored?.takeIf { it.isNotBlank() }?.let { runCatching { json.decodeFromString(serializer, it) }.getOrNull() }
             .orEmpty()
-
-    private fun normalise(text: String): String =
-        text.lowercase().replace('ё', 'е').split(nonWord).filter { it.isNotEmpty() }.joinToString(" ")
 }

@@ -30,6 +30,32 @@ class QuickLinksTest {
     }
 
     @Test
+    fun `said the way people say it - other forms, other lead-ins, a word in between`() {
+        listOf(
+            "Я хочу посмотреть фильмы.", "Пятница, посмотрим какой-нибудь фильм", "Ну давай посмотрим фильмы",
+            "хочу посмотреть фильм, пожалуйста"
+        ).forEach { assertEquals(it, films, QuickLinks.match(it, links)) }
+    }
+
+    @Test
+    fun `order matters, and a one-word phrase needs a short request`() {
+        val kino = QuickLink("4", "Кино", listOf("кино"), "https://kino.example")
+        assertEquals(kino, QuickLinks.match("кино", listOf(kino)))
+        assertEquals(kino, QuickLinks.match("Пятница, включи кино", listOf(kino)))
+        assertNull(QuickLinks.match("расскажи что-нибудь интересное про кино восьмидесятых", listOf(kino)))
+        assertNull(QuickLinks.match("фильм хочу посмотреть потом", listOf(films)))
+    }
+
+    @Test
+    fun `stems`() {
+        assertEquals("посмотр", PhraseMatch.stem("посмотреть"))
+        assertEquals("посмотр", PhraseMatch.stem("посмотрим"))
+        assertEquals("фильм", PhraseMatch.stem("фильмы"))
+        assertEquals("кин", PhraseMatch.stem("кино"))
+        assertEquals("movie", PhraseMatch.stem("movies"))
+    }
+
+    @Test
     fun `the longest phrase wins`() {
         assertEquals(cartoons, QuickLinks.match("давай посмотрим фильм для детей", links))
     }
