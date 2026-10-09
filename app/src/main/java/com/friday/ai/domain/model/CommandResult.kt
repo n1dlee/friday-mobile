@@ -147,6 +147,13 @@ sealed interface CommandResult {
     data object AnalyzeScreen : CommandResult
     data class AnalyzeFile(val fileHint: String?) : CommandResult
     data class ChatMessage(val text: String) : CommandResult
+
+    /**
+     * One of the owner's quick links ("давай посмотрим фильм" → their film
+     * site). [silent]: opened without a word and left out of the chat and
+     * the memory.
+     */
+    data class OpenLink(val name: String, val url: String, val silent: Boolean) : CommandResult
 }
 
 /**

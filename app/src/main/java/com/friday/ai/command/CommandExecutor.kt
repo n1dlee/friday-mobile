@@ -6,6 +6,8 @@ import com.friday.ai.core.CommandRouter
 import com.friday.ai.core.modes.ModeEngine
 import java.time.LocalDateTime
 import com.friday.ai.domain.model.CommandResult
+import com.friday.ai.service.links.LinkOpener
+import com.friday.ai.service.links.QuickLinkStore
 import com.friday.ai.service.mail.MailAssistant
 import com.friday.ai.service.messages.MessageAssistant
 import kotlinx.coroutines.CancellationException
@@ -36,6 +38,9 @@ class CommandExecutor(
     private val learned: LearnedCommands? = null,
     private val now: () -> LocalDateTime = LocalDateTime::now,
     private val modes: ModeEngine? = null,
+    /** The owner's quick links: their phrases come before everything else. */
+    private val links: QuickLinkStore? = null,
+    private val opener: LinkOpener? = null,
     /** Whether the phone is locked, and whether the owner's voice is verified ([LockPolicy]). */
     private val lock: suspend () -> Pair<Boolean, Boolean> = { false to true }
 ) {
@@ -52,6 +57,9 @@ class CommandExecutor(
 
         /** Needs a file picked, which only the app's UI can start. */
         data class NeedsFile(val hint: String?) : Outcome
+
+        /** Done, and nothing is to be said or kept: a silent quick link. */
+        data object Silent : Outcome
     }
 
     companion object {
@@ -75,6 +83,11 @@ class CommandExecutor(
      */
     fun route(text: String): CommandResult {
         learned?.noteReply(text)
+        // The owner's own phrases for their sites, before anything else reads them.
+        links?.match(text)?.let {
+            lastRouteLearned = false
+            return CommandResult.OpenLink(it.name, it.url, it.silent)
+        }
         // The owner's own modes come first: one named "тишины" means theirs, not the DND phrase.
         modes?.route(text)?.let {
             lastRouteLearned = false
@@ -112,14 +125,24 @@ class CommandExecutor(
      * replies are said together.
      */
     private suspend fun inOrder(steps: List<CommandResult>, russian: Boolean): Outcome {
-        val replies = steps.map { step ->
+        val replies = steps.mapNotNull { step ->
             when (val outcome = single(step, russian)) {
                 is Outcome.Reply -> outcome.text
+                Outcome.Silent -> null
                 // Not produced by the router inside a sequence; said rather than dropped.
                 else -> if (russian) "Это нужно сделать отдельно." else "That needs doing on its own."
             }
-        }
+        }.filter { it.isNotBlank() }
         return Outcome.Reply(replies.joinToString(" ") { it.trim().let { r -> if (r.last() in ".!?…") r else "$r." } })
+    }
+
+    private fun openLink(link: CommandResult.OpenLink, russian: Boolean): Outcome {
+        val opened = opener?.open(link.url) == true
+        return when {
+            opened && link.silent -> Outcome.Silent
+            opened -> Outcome.Reply(if (russian) "Открываю «${link.name}»." else "Opening ${link.name}.")
+            else -> Outcome.Reply(if (russian) "Не нашла браузер, чтобы открыть ссылку." else "No browser to open it.")
+        }
     }
 
     /** A step inside a mode always yields words. */
@@ -142,6 +165,7 @@ class CommandExecutor(
                 is CommandResult.Planner -> Outcome.Reply(planner.run(command, russian))
                 is CommandResult.Info -> Outcome.Reply(info.run(command, russian))
                 is CommandResult.ChatMessage -> Outcome.Conversation(command.text)
+                is CommandResult.OpenLink -> openLink(command, russian)
                 is CommandResult.AnalyzeScreen -> Outcome.NeedsScreen
                 is CommandResult.AnalyzeFile -> Outcome.NeedsFile(command.fileHint)
                 is CommandResult.Sequence -> inOrder(command.steps, russian)

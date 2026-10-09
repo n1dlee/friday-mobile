@@ -24,6 +24,8 @@ object LockPolicy {
     fun personal(command: CommandResult): Boolean = when (command) {
         is CommandResult.PhoneCall, is CommandResult.SendMessage, is CommandResult.ReplyMessage,
         is CommandResult.ReadMessages, is CommandResult.Mail, CommandResult.WhatDidIMiss -> true
+        // The owner's own sites: on a locked phone, only for the owner's voice.
+        is CommandResult.OpenLink -> true
         is CommandResult.Sequence -> command.steps.any(::personal)
         else -> false
     }

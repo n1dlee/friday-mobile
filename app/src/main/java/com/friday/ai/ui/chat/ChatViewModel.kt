@@ -171,12 +171,18 @@ class ChatViewModel(
             return
         }
         viewModelScope.launch {
+            // A silent quick link leaves nothing in the chat, not even what was typed.
+            if (command is CommandResult.OpenLink && command.silent) {
+                commands.execute(command, isRussian(text))
+                return@launch
+            }
             persist(text, MessageRole.USER)
             when (val outcome = commands.execute(command, isRussian(text))) {
                 is CommandExecutor.Outcome.Reply -> persist(outcome.text, MessageRole.ASSISTANT)
                 is CommandExecutor.Outcome.Conversation -> streamReply(outcome.text)
                 CommandExecutor.Outcome.NeedsScreen -> onAnalyzeScreenRequested?.invoke()
                 is CommandExecutor.Outcome.NeedsFile -> onAnalyzeFileRequested?.invoke(outcome.hint)
+                CommandExecutor.Outcome.Silent -> Unit
             }
         }
     }

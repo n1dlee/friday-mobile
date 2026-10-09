@@ -245,9 +245,15 @@ class VoiceConversation(
 
     /** @param last the owner said goodbye after this: answer, then stop listening. */
     private suspend fun process(mine: Int, text: String, russian: Boolean, last: Boolean = false) {
+        val command = commands.route(text)
+        // A silent quick link: opened, and nothing shown, said or kept.
+        if (command is CommandResult.OpenLink && command.silent) {
+            commands.execute(command, russian)
+            if (mine == turn) io.overlay.dismiss()
+            return
+        }
         io.notifier.update("Processing...")
         io.overlay.show(FridayOverlayManager.State.PROCESSING, "\"$text\"")
-        val command = commands.route(text)
         io.overlay.source(sourceLabel(command, commands.lastRouteLearned, russian))
         val outcome = commands.execute(command, russian)
         if (outcome is CommandExecutor.Outcome.Conversation) {
@@ -363,4 +369,5 @@ private fun spokenReply(outcome: CommandExecutor.Outcome): String = when (outcom
     is CommandExecutor.Outcome.Conversation -> outcome.text
     CommandExecutor.Outcome.NeedsScreen -> "Screen analysis available in the app"
     is CommandExecutor.Outcome.NeedsFile -> "File analysis available in the app"
+    CommandExecutor.Outcome.Silent -> ""
 }
