@@ -147,7 +147,12 @@ object AgentTools {
         ) {
             string("question", "the question, self-contained, e.g. 'latest iPhone model'", required = true)
         },
-        tool("weather", "Real weather. Never guess weather without this.") {
+        tool(
+            "weather",
+            "Real weather: temperature and feels-like, wind, and when rain or snow comes, how much and how likely. " +
+                "Use it for every weather question and follow-up (rain, umbrella, wind) — never web_search or guess. " +
+                "Retell its result in full; it is already short."
+        ) {
             string("place", "city; omit for the user's home city")
             int("day_offset", "0 today, 1 tomorrow, 2 day after")
         },

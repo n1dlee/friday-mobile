@@ -2,6 +2,7 @@ package com.friday.ai.data.remote
 
 import android.util.Log
 import com.friday.ai.core.WeatherCodes
+import com.friday.ai.core.WeatherReport
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -28,6 +29,7 @@ class WeatherApiService private constructor(
         private const val TAG = "WeatherApiService"
         private const val GEOCODE_URL = "https://geocoding-api.open-meteo.com/v1/search"
         private const val FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
+        private const val MAX_DAYS = 7
 
         fun create(): WeatherApiService = WeatherApiService(
             OkHttpClient.Builder()
@@ -158,6 +160,28 @@ class WeatherApiService private constructor(
                 maxTemp = seriesAt("temperature_2m_max") ?: return@withContext null,
                 weatherCode = seriesAt("weather_code")?.toInt() ?: -1
             )
+        } catch (e: Exception) {
+            Log.w(TAG, "Forecast failed: ${e.message}")
+            null
+        }
+    }
+
+    /**
+     * Now, every hour and every day up to [days] ahead, in one request — all
+     * a full answer needs ([com.friday.ai.core.WeatherReport]). Times are the
+     * place's own (timezone=auto).
+     */
+    suspend fun forecast(place: Place, days: Int): WeatherReport.Forecast? = withContext(Dispatchers.IO) {
+        try {
+            val url = "$FORECAST_URL?latitude=${place.latitude}&longitude=${place.longitude}" +
+                "&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m" +
+                "&hourly=temperature_2m,apparent_temperature,precipitation_probability,precipitation," +
+                "weather_code,wind_speed_10m" +
+                "&daily=temperature_2m_max,temperature_2m_min,weather_code,precipitation_sum," +
+                "precipitation_probability_max,wind_speed_10m_max" +
+                "&forecast_days=${days.coerceIn(1, MAX_DAYS)}&timezone=auto"
+            val body = get(url) ?: return@withContext null
+            ForecastJson.parse(place.name, json.parseToJsonElement(body).jsonObject)
         } catch (e: Exception) {
             Log.w(TAG, "Forecast failed: ${e.message}")
             null

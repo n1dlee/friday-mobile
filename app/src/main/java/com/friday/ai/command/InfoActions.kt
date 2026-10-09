@@ -18,12 +18,23 @@ class InfoActions(
 
     suspend fun run(c: CommandResult.Info, russian: Boolean): String = when (c) {
         is CommandResult.Weather -> weather(c, russian)
+        is CommandResult.SetHomeCity -> homeCity(c.city, russian)
         is CommandResult.WhatDidIMiss -> proactive.whatDidIMiss(russian)
         is CommandResult.TellTime -> tellTime(russian)
         is CommandResult.LookUp -> web.answer(c.question, russian)
         is CommandResult.ReadMessages -> messages.read(c.from, russian)
         is CommandResult.MorningBrief -> proactive.morningBrief(russian)
         is CommandResult.Mail -> mail.handle(c.request, russian).text
+    }
+
+    private suspend fun homeCity(said: String, russian: Boolean): String {
+        val saved = weather.setHomeCity(said, russian)
+        return when {
+            saved == null && russian -> "Не нашла город «$said»."
+            saved == null -> "I couldn't find a city called $said."
+            russian -> "Запомнила: ваш город — $saved."
+            else -> "Got it: your city is $saved."
+        }
     }
 
     private fun tellTime(russian: Boolean): String {
