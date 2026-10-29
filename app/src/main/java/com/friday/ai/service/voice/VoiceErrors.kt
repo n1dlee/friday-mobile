@@ -1,6 +1,7 @@
 package com.friday.ai.service.voice
 
 import com.friday.ai.data.remote.GroqApiException
+import com.friday.ai.core.VoiceTurn
 import java.io.IOException
 
 /**
@@ -14,6 +15,21 @@ object VoiceErrors {
 
     private const val UNAUTHORISED = 401
     private const val RATE_LIMITED = 429
+
+    fun asr(reason: VoiceTurn.Failure): String = when (reason) {
+        VoiceTurn.Failure.AUTH -> "Ключ Groq не подходит. Проверьте его в настройках."
+        VoiceTurn.Failure.CONFIG -> "Распознавание Groq недоступно: проверьте настройки."
+        VoiceTurn.Failure.NO_KEY -> "Не задан ключ Groq и нет подходящей локальной команды."
+        VoiceTurn.Failure.CAPTURE -> "Микрофон недоступен. Попробуйте ещё раз."
+        else -> "Распознавание недоступно; локально разобрать запрос не удалось. Проверьте интернет."
+    }
+
+    fun localOnly(reason: VoiceTurn.Failure, russian: Boolean): String = when {
+        reason == VoiceTurn.Failure.NO_KEY && russian -> asr(reason)
+        russian -> "Распознала локально, но для этого запроса нужно облачное распознавание. " +
+            "Повторите позже или напишите в Friday."
+        else -> "I heard local words, but this request needs cloud recognition. Try again later or type it in Friday."
+    }
 
     fun spoken(e: Throwable, russian: Boolean): String = when {
         e is GroqApiException && e.modelMissing ->

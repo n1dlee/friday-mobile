@@ -34,4 +34,15 @@ class DiagnosticReportTest {
         assertTrue(report.startsWith("Friday 0.13.0 · samsung SM-S938B"))
         assertTrue(report.contains("[PROBLEM] Телефон и люди · Не беспокоить: Нет"))
     }
+
+    @Test
+    fun `voice report shares typed metadata without transcript or audio`() {
+        val diagnostics = com.friday.ai.core.voice.VoiceDiagnostics { 10 }
+        diagnostics.begin(1)
+        diagnostics.heard(1, com.friday.ai.core.VoiceTurn.Outcome.Heard("secret dictated message"))
+        val report = DiagnosticReport.build("test", "device", emptyList(), emptyList(), diagnostics.state.value)
+        assertTrue(report.contains("accepted=1"))
+        assertTrue(report.contains("asr=CLOUD_ASR"))
+        assertFalse(report.contains("secret dictated message"))
+    }
 }

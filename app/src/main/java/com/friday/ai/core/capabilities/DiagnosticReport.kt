@@ -30,11 +30,22 @@ object DiagnosticReport {
         }
     }
 
-    fun build(version: String, device: String, rows: List<Diagnostics.Row>, log: List<String>): String = buildString {
+    fun build(
+        version: String,
+        device: String,
+        rows: List<Diagnostics.Row>,
+        log: List<String>,
+        voice: com.friday.ai.core.voice.VoiceDiagnosticSnapshot? = null
+    ): String = buildString {
         appendLine("Friday $version · $device")
         appendLine()
         appendLine("== Диагностика ==")
         rows.forEach { appendLine("[${it.status}] ${it.group.title} · ${it.title}: ${it.detail}") }
+        voice?.let {
+            appendLine()
+            appendLine("== Голос (метаданные текущего процесса) ==")
+            append(com.friday.ai.core.voice.VoiceDiagnosticReport.format(it))
+        }
         appendLine()
         appendLine("== Журнал (${log.size} строк, без ключей, номеров и текста) ==")
         log.forEach { appendLine(redact(it)) }

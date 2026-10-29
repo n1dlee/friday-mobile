@@ -8,6 +8,7 @@ import com.friday.ai.domain.model.MessageRole
 import com.friday.ai.service.FridayMemory
 import com.friday.ai.service.ModelCatalog
 import java.util.UUID
+import kotlinx.coroutines.CancellationException
 
 /**
  * What a spoken conversation needs to know and leaves behind: settings,
@@ -57,6 +58,8 @@ class VoiceSession(
             chatDao.insert(entity(user, MessageRole.USER, session, now))
             // One millisecond later, so the reply always sorts after the question.
             chatDao.insert(entity(reply, MessageRole.ASSISTANT, session, now + 1))
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.w(TAG, "Could not mirror voice turn into chat: ${e.message}")
         }

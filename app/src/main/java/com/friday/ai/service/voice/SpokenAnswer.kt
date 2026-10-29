@@ -16,6 +16,12 @@ import com.friday.ai.service.EdgeTtsSpeaker
 import com.friday.ai.service.FridayMemory
 import com.friday.ai.service.FridayOverlayManager
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import com.friday.ai.core.voice.PlaybackEvent
+import com.friday.ai.core.voice.PlaybackPhase
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * A conversational answer from the model, spoken as it is written.
@@ -46,7 +52,6 @@ class SpokenAnswer(
         /** Cap on overlay redraws while tokens stream in. */
         const val OVERLAY_REFRESH_MS = 120L
 
-        /** Earlier exchanges sent with the question, for context. */
         /** Earlier exchanges sent along; each costs tokens on every round of every answer. */
         const val HISTORY_TURNS = 5
 
@@ -56,7 +61,7 @@ class SpokenAnswer(
                 "detail or the request genuinely requires a list/steps. Respond in the same language the user speaks."
     }
 
-    suspend fun answer(userText: String): Result {
+    suspend fun answer(userText: String, isCurrent: () -> Boolean, onPlayback: (PlaybackEvent) -> Unit): Result {
         val sessionId = session.id()
         val history = memory.getSessionHistory(sessionId, limit = HISTORY_TURNS)
         val messages = buildList {
@@ -73,20 +78,23 @@ class SpokenAnswer(
         }
 
         val russian = session.russian()
-        val speech = speaker.beginSpeech()
+        val playback = Playback(isCurrent, onPlayback)
+        val speech = playback.speech
         return try {
-            val response = stream(messages, speech, russian)
+            val response = stream(messages, playback, russian)
+            currentCoroutineContext().ensureActive()
+            if (!isCurrent()) throw CancellationException("Superseded voice answer")
             if (response.isBlank()) {
                 speech.cancel()
                 return Result.Failed(VoiceErrors.empty(russian))
             }
-            overlay.speaking(response)
+            playback.show(response)
             remember(userText, response, assistantSpokeBefore = history.isNotEmpty())
             speech.endInput()
-            speech.awaitCompletion()
+            val played = speech.awaitCompletion()
             // If Friday herself just said goodbye the exchange is over: don't
             // reopen the microphone and sit there in the user's way.
-            Result.Finished(response, followUp = !ConversationControl.isFarewell(response))
+            Result.Finished(response, followUp = played && !ConversationControl.isFarewell(response))
         } catch (e: CancellationException) {
             speech.cancel()
             throw e
@@ -108,12 +116,11 @@ class SpokenAnswer(
 
     private suspend fun stream(
         messages: List<ApiMessage>,
-        speech: EdgeTtsSpeaker.SpeechSession,
+        playback: Playback,
         russian: Boolean
     ): String {
         val response = StringBuilder()
         val chunker = SentenceChunker()
-        var speaking = false
         var lastRedraw = 0L
 
         val settings = FridayAgent.Settings(
@@ -121,21 +128,46 @@ class SpokenAnswer(
         )
         agent.reply(settings, messages, russian)
             .collect { token ->
+                currentCoroutineContext().ensureActive()
+                if (!playback.current()) throw CancellationException("Superseded voice answer")
                 response.append(token)
                 chunker.append(token).forEach { sentence ->
-                    speech.offer(sentence)
-                    speaking = true
+                    playback.latest.set(response.toString())
+                    playback.speech.offer(sentence)
                 }
                 // Throttled: redrawing on every token queued hundreds of
                 // main-thread posts per reply.
                 val now = SystemClock.uptimeMillis()
                 if (now - lastRedraw >= OVERLAY_REFRESH_MS) {
                     lastRedraw = now
-                    overlay.streaming(response.toString(), speaking)
+                    playback.show(response.toString())
                 }
             }
-        chunker.flush()?.let { speech.offer(it) }
+        playback.latest.set(response.toString())
+        chunker.flush()?.let { playback.speech.offer(it) }
         return response.toString()
+    }
+
+    private inner class Playback(val current: () -> Boolean, onPlayback: (PlaybackEvent) -> Unit) {
+        val latest = AtomicReference("")
+        private val playing = AtomicBoolean()
+        val speech = speaker.beginSpeech { event ->
+            if (current()) {
+                if (event.phase == PlaybackPhase.PLAYING) {
+                    playing.set(true)
+                    overlay.streaming(latest.get(), true, current)
+                } else if (event.phase == PlaybackPhase.WAITING) {
+                    playing.set(false)
+                    overlay.streaming(latest.get(), false, current)
+                }
+                onPlayback(event)
+            }
+        }
+
+        fun show(text: String) {
+            latest.set(text)
+            overlay.streaming(text, playing.get(), current)
+        }
     }
 
     private suspend fun remember(userText: String, response: String, assistantSpokeBefore: Boolean) {

@@ -68,7 +68,9 @@ class VoiceInputManager(
             // No speaker check here: pressing the mic button in the open app
             // is already proof of who is asking.
             val result = transcriber.recordAndTranscribe(apiKey)
-            if (result !is VoiceTurn.Outcome.Heard && _error.value == null) {
+            if (result is VoiceTurn.Outcome.Unavailable) {
+                _error.value = com.friday.ai.service.voice.VoiceErrors.asr(result.reason)
+            } else if (result !is VoiceTurn.Outcome.Heard && _error.value == null) {
                 _error.value = "No speech detected. Try again."
             }
             _isListening.value = false
@@ -82,6 +84,7 @@ class VoiceInputManager(
 
     fun destroy() {
         scope.cancel()
+        transcriber.abort()
     }
 
     fun clearResult() {

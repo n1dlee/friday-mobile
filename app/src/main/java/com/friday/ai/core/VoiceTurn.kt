@@ -8,8 +8,18 @@ package com.friday.ai.core
  */
 object VoiceTurn {
 
+    enum class Origin { CLOUD, LOCAL }
+
+    enum class Failure { NETWORK, TIMEOUT, SERVICE, AUTH, CONFIG, NO_KEY, CAPTURE }
+
     sealed interface Outcome {
-        data class Heard(val text: String) : Outcome
+        data class Heard(
+            val text: String,
+            val origin: Origin = Origin.CLOUD,
+            val degradedBy: Failure? = null
+        ) : Outcome
+
+        data class Unavailable(val reason: Failure) : Outcome
 
         /** Nothing usable: silence, too short, or the recording failed. */
         data object Nothing : Outcome

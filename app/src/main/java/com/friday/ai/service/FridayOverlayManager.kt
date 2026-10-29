@@ -77,6 +77,7 @@ class FridayOverlayManager(private val context: Context) {
     private var window: OverlayWindow? = null
     private var autoDismiss: Runnable? = null
     private var lastSession = -1L
+    @Volatile private var generation = 0L
 
     var onDismissed: (() -> Unit)? = null
 
@@ -90,6 +91,8 @@ class FridayOverlayManager(private val context: Context) {
 
     /** Opens a session: [userInitiated] when the owner called, false for Friday's own announcements. */
     fun begin(userInitiated: Boolean) {
+        generation++
+        onMain(generation) { cancelAutoDismiss() }
         store.begin(userInitiated)
     }
 
@@ -104,8 +107,8 @@ class FridayOverlayManager(private val context: Context) {
     fun processing(heard: String?) = stage(VoicePhase.PROCESSING) { it.copy(heard = heard, answer = null) }
 
     /** A streamed answer, before ([speaking] false) and once the voice has started. */
-    fun streaming(text: String, speaking: Boolean) =
-        stage(if (speaking) VoicePhase.SPEAKING else VoicePhase.PROCESSING) { it.copy(answer = text) }
+    fun streaming(text: String, speaking: Boolean, isCurrent: () -> Boolean) =
+        stage(if (speaking) VoicePhase.SPEAKING else VoicePhase.PROCESSING, isCurrent) { it.copy(answer = text) }
 
     fun speaking(text: String) = stage(VoicePhase.SPEAKING) { it.copy(answer = text) }
 
@@ -127,25 +130,38 @@ class FridayOverlayManager(private val context: Context) {
     fun level(value: Float) = store.level(value)
 
     fun dismiss() {
-        handler.post {
+        val closing = ++generation
+        onMain(closing) {
             cancelAutoDismiss()
             store.end()
             onDismissed?.invoke()
         }
     }
 
-    private fun stage(phase: VoicePhase, change: (VoicePanel) -> VoicePanel = { it }) {
-        handler.post {
-            cancelAutoDismiss()
-            store.phase(phase, change)
+    private fun stage(
+        phase: VoicePhase,
+        isCurrent: () -> Boolean = { true },
+        change: (VoicePanel) -> VoicePanel = { it }
+    ) {
+        onMain(generation) {
+            if (isCurrent()) {
+                cancelAutoDismiss()
+                store.phase(phase, change)
+            }
         }
     }
 
     private fun dismissIn(ms: Long) {
-        handler.post {
+        val current = generation
+        onMain(current) {
             cancelAutoDismiss()
-            autoDismiss = Runnable { dismiss() }.also { handler.postDelayed(it, ms) }
+            autoDismiss = Runnable { if (generation == current) dismiss() }.also { handler.postDelayed(it, ms) }
         }
+    }
+
+    private fun onMain(expected: Long, action: () -> Unit) {
+        val guarded = { if (generation == expected) action() }
+        if (Looper.myLooper() == Looper.getMainLooper()) guarded() else handler.post { guarded() }
     }
 
     private fun cancelAutoDismiss() {

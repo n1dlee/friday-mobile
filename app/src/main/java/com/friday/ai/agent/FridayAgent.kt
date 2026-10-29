@@ -12,6 +12,8 @@ import com.friday.ai.data.remote.dto.ToolCall
 import com.friday.ai.data.remote.groqJson
 import java.time.LocalDateTime
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.flow
@@ -128,6 +130,7 @@ class FridayAgent(
             conversation += ApiMessage(role = "assistant", content = "", toolCalls = calls)
             val own = mutableListOf<String>()
             calls.forEach { call ->
+                currentCoroutineContext().ensureActive()
                 val blocked = unavailable(call, caps) ?: ungrounded(call, said)
                 val (result, ok) = blocked?.let { it to false } ?: carryOut(call, russian)
                 done += call to ok

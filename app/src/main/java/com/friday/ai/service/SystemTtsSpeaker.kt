@@ -9,6 +9,8 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.Locale
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.CancellableContinuation
 import kotlin.coroutines.resume
 
 /**
@@ -24,7 +26,10 @@ import kotlin.coroutines.resume
  * a neural engine (e.g. SherpaTTS from F-Droid) and picking it in system
  * settings upgrades this path without any change to the app.
  */
-class SystemTtsSpeaker(context: Context) {
+class SystemTtsSpeaker(
+    context: Context,
+    engine: (Context, TextToSpeech.OnInitListener) -> TextToSpeech = { app, listener -> TextToSpeech(app, listener) }
+) {
 
     private companion object {
         const val TAG = "SystemTtsSpeaker"
@@ -32,15 +37,17 @@ class SystemTtsSpeaker(context: Context) {
     }
 
     private val ready = CompletableDeferred<Boolean>()
+    private val playbackLock = Any()
+    @Volatile private var activeId: String? = null
 
-    private val tts: TextToSpeech = TextToSpeech(context.applicationContext) { status ->
+    private val tts: TextToSpeech = engine(context.applicationContext) { status ->
         val ok = status == TextToSpeech.SUCCESS
         if (!ok) Log.e(TAG, "TTS engine unavailable (status=$status)")
         ready.complete(ok)
     }
 
     /** Speaks [text] and suspends until playback finishes. Returns false if it couldn't. */
-    suspend fun speak(text: String): Boolean {
+    suspend fun speak(text: String, onStarted: () -> Unit = {}): Boolean {
         if (text.isBlank()) return true
 
         val available = withTimeoutOrNull(INIT_TIMEOUT_MS) { ready.await() } ?: false
@@ -49,42 +56,53 @@ class SystemTtsSpeaker(context: Context) {
             return false
         }
 
-        applyLanguageFor(text)
-
         return suspendCancellableCoroutine { cont ->
             val id = UUID.randomUUID().toString()
-            var settled = false
-            fun settle(success: Boolean) {
-                if (settled) return
-                settled = true
-                if (cont.isActive) cont.resume(success)
-            }
-
-            tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                override fun onStart(utteranceId: String?) = Unit
-                override fun onDone(utteranceId: String?) = settle(true)
-
-                @Deprecated("Superseded by the (String, int) overload")
-                override fun onError(utteranceId: String?) = settle(false)
-
-                override fun onError(utteranceId: String?, errorCode: Int) {
-                    Log.e(TAG, "Playback error code=$errorCode")
-                    settle(false)
+            cont.invokeOnCancellation {
+                synchronized(playbackLock) {
+                    if (activeId == id) {
+                        activeId = null
+                        tts.stop()
+                    }
                 }
-            })
-
-            val result = tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, id)
-            if (result != TextToSpeech.SUCCESS) {
-                Log.e(TAG, "speak() rejected the request")
-                settle(false)
             }
-
-            cont.invokeOnCancellation { runCatching { tts.stop() } }
+            synchronized(playbackLock) {
+                if (cont.isActive) {
+                    activeId = id
+                    applyLanguageFor(text)
+                    queue(text, id, onStarted, cont)
+                }
+            }
         }
     }
 
+    private fun queue(text: String, id: String, onStarted: () -> Unit, cont: CancellableContinuation<Boolean>) {
+        val settled = AtomicBoolean()
+        fun settle(success: Boolean) {
+            if (settled.compareAndSet(false, true) && cont.isActive) cont.resume(success)
+        }
+        tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+            override fun onStart(utteranceId: String?) {
+                if (utteranceId == id && activeId == id) onStarted()
+            }
+            override fun onDone(utteranceId: String?) { if (utteranceId == id) settle(true) }
+
+            @Deprecated("Superseded by the (String, int) overload")
+            override fun onError(utteranceId: String?) { if (utteranceId == id) settle(false) }
+
+            override fun onError(utteranceId: String?, errorCode: Int) {
+                Log.e(TAG, "Playback error code=$errorCode")
+                if (utteranceId == id) settle(false)
+            }
+        })
+        if (tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, id) != TextToSpeech.SUCCESS) settle(false)
+    }
+
     fun stop() {
-        runCatching { tts.stop() }
+        synchronized(playbackLock) {
+            activeId = null
+            tts.stop()
+        }
     }
 
     fun destroy() {

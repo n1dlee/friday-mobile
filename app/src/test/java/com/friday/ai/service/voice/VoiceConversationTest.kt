@@ -3,6 +3,10 @@ package com.friday.ai.service.voice
 import com.friday.ai.command.CommandExecutor
 import com.friday.ai.core.OfflineCommands
 import com.friday.ai.core.VoiceTurn
+import com.friday.ai.core.voice.PlaybackEvent
+import com.friday.ai.core.voice.PlaybackPhase
+import com.friday.ai.core.voice.VoiceEngine
+import com.friday.ai.core.voice.VoiceDiagnostics
 import com.friday.ai.domain.model.CommandResult
 import com.friday.ai.service.EdgeTtsSpeaker
 import com.friday.ai.service.FridayOverlayManager
@@ -15,6 +19,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -60,12 +65,13 @@ class VoiceConversationTest {
         session = mockk(relaxed = true)
 
         every { offline.isOffline() } returns false
+        every { wake.voskModel } returns null
         every { gate.commandCheck() } returns null
         coEvery { session.apiKey() } returns "key"
         coEvery { session.russian() } returns true
         coEvery { commands.answerPending(any(), any()) } returns null
-        every { speaker.speak(any(), any()) } answers {
-            said += firstArg<String>() to secondArg<(() -> Unit)?>()
+        every { speaker.speakObserved(any(), any(), any()) } answers {
+            said += firstArg<String>() to thirdArg<(() -> Unit)?>()
         }
     }
 
@@ -76,7 +82,10 @@ class VoiceConversationTest {
      */
     private fun TestScope.conversation(inCall: () -> Boolean = { false }) = VoiceConversation(
         CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler)),
-        VoiceIO(overlay, speaker, transcriber, offline, wake, mockk(relaxed = true), inCall = inCall),
+        VoiceIO(
+            overlay, speaker, transcriber, offline, wake, mockk(relaxed = true),
+            inCall = inCall, diagnostics = VoiceDiagnostics { testScheduler.currentTime }
+        ),
         gate, commands, answers, session
     )
 
@@ -230,7 +239,8 @@ class VoiceConversationTest {
         hears(VoiceTurn.Outcome.Heard("расскажи анекдот"))
         every { commands.route(any()) } returns CommandResult.ChatMessage("расскажи анекдот")
         coEvery { commands.execute(any(), any()) } returns CommandExecutor.Outcome.Conversation("расскажи анекдот")
-        coEvery { answers.answer("расскажи анекдот") } returns SpokenAnswer.Result.Finished("Вот анекдот. Пока!", false)
+        coEvery { answers.answer("расскажи анекдот", any(), any()) } returns
+            SpokenAnswer.Result.Finished("Вот анекдот. Пока!", false)
         val c = conversation()
 
         c.onWake("пятница")
@@ -314,5 +324,111 @@ class VoiceConversationTest {
             wake.stop()
             transcriber.recordAndTranscribe(any(), any())
         }
+    }
+
+    @Test
+    fun `new wake cancels a streaming answer and ignores its late playback callback`() = runTest {
+        hears(VoiceTurn.Outcome.Heard("расскажи"), VoiceTurn.Outcome.Heard("пока"))
+        every { commands.route(any()) } returns CommandResult.ChatMessage("расскажи")
+        coEvery { commands.execute(any(), any()) } returns CommandExecutor.Outcome.Conversation("расскажи")
+        var cancelled = false
+        lateinit var playback: (PlaybackEvent) -> Unit
+        coEvery { answers.answer(any(), any(), any()) } coAnswers {
+            playback = thirdArg()
+            playback(PlaybackEvent(PlaybackPhase.PLAYING, VoiceEngine.EDGE))
+            try { awaitCancellation() } finally { cancelled = true }
+        }
+        val c = conversation()
+        c.onWake("пятница")
+        advanceUntilIdle()
+        finishSpeaking(0)
+        assertTrue(c.speaking)
+        c.onWake("пятница")
+        advanceUntilIdle()
+        assertTrue(cancelled)
+        playback(PlaybackEvent(PlaybackPhase.PLAYING, VoiceEngine.EDGE))
+        advanceUntilIdle()
+        verify(exactly = 1) { wake.listen() }
+        coVerify(exactly = 2) { transcriber.recordAndTranscribe(any(), any()) }
+    }
+
+    @Test
+    fun `closing during generation cancels the answer and discards capture rather than transcribing it`() = runTest {
+        hears(VoiceTurn.Outcome.Heard("расскажи"))
+        every { commands.route(any()) } returns CommandResult.ChatMessage("расскажи")
+        coEvery { commands.execute(any(), any()) } returns CommandExecutor.Outcome.Conversation("расскажи")
+        var cancelled = false
+        coEvery { answers.answer(any(), any(), any()) } coAnswers {
+            try { awaitCancellation() } finally { cancelled = true }
+        }
+        val c = conversation()
+        c.onWake("пятница")
+        advanceUntilIdle()
+        finishSpeaking(0)
+        c.close()
+        advanceUntilIdle()
+        assertTrue(cancelled)
+        verify { transcriber.abort() }
+        verify(exactly = 0) { transcriber.requestStop() }
+        verify { commands.dropPending() }
+        verify { overlay.dismiss() }
+    }
+
+    @Test
+    fun `degraded words cannot call an agent or confirm a pending message`() = runTest {
+        hears(VoiceTurn.Outcome.Heard("да", VoiceTurn.Origin.LOCAL, VoiceTurn.Failure.NETWORK))
+        every { commands.route("да") } returns CommandResult.ChatMessage("да")
+        val c = conversation()
+        c.onWake("пятница")
+        advanceUntilIdle()
+        finishSpeaking(0)
+        coVerify(exactly = 0) { commands.answerPending(any(), any()) }
+        coVerify(exactly = 0) { commands.execute(any(), any()) }
+        coVerify(exactly = 0) { answers.answer(any(), any(), any()) }
+        verify { commands.dropPending() }
+    }
+
+    @Test
+    fun `degraded supported command executes once and reports its local source`() = runTest {
+        hears(VoiceTurn.Outcome.Heard("включи фонарик", VoiceTurn.Origin.LOCAL, VoiceTurn.Failure.TIMEOUT))
+        every { commands.route("включи фонарик") } returns CommandResult.ToggleFlashlight
+        coEvery { commands.execute(CommandResult.ToggleFlashlight, true) } returns
+            CommandExecutor.Outcome.Reply("Готово")
+        val c = conversation()
+        c.onWake("пятница")
+        advanceUntilIdle()
+        finishSpeaking(0)
+        coVerify(exactly = 1) { commands.execute(CommandResult.ToggleFlashlight, true) }
+        verify { overlay.source("локально") }
+        finishSpeaking(1)
+        coVerify(exactly = 1) { transcriber.recordAndTranscribe(any(), any()) }
+    }
+
+    @Test
+    fun `available local model handles a supported command even without a cloud key`() = runTest {
+        coEvery { session.apiKey() } returns ""
+        every { wake.voskModel } returns mockk()
+        coEvery { transcriber.recordAndTranscribe("", any()) } returns
+            VoiceTurn.Outcome.Heard("включи фонарик", VoiceTurn.Origin.LOCAL, VoiceTurn.Failure.NO_KEY)
+        every { commands.route("включи фонарик") } returns CommandResult.ToggleFlashlight
+        coEvery { commands.execute(CommandResult.ToggleFlashlight, true) } returns
+            CommandExecutor.Outcome.Reply("Готово")
+        val c = conversation()
+        c.onWake("пятница")
+        advanceUntilIdle()
+        finishSpeaking(0)
+        coVerify(exactly = 1) { commands.execute(CommandResult.ToggleFlashlight, true) }
+        verify(exactly = 0) { overlay.error(any(), any()) }
+    }
+
+    @Test
+    fun `degraded transcript cannot send a message even when SMS is an offline capable action`() = runTest {
+        hears(VoiceTurn.Outcome.Heard("напиши маме привет", VoiceTurn.Origin.LOCAL, VoiceTurn.Failure.NETWORK))
+        every { commands.route(any()) } returns CommandResult.SendMessage("мама", "привет")
+        val c = conversation()
+        c.onWake("пятница")
+        advanceUntilIdle()
+        finishSpeaking(0)
+        coVerify(exactly = 0) { commands.execute(any(), any()) }
     }
 }

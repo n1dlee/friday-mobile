@@ -71,6 +71,7 @@ fun DiagnosticsScreen(
     onOpenSettings: () -> Unit
 ) {
     val rows by viewModel.rows.collectAsStateWithLifecycle()
+    val voice by viewModel.voice.collectAsStateWithLifecycle()
     // Back from a system screen, the answer may have changed.
     LifecycleResumeEffect(Unit) {
         viewModel.refresh()
@@ -108,6 +109,7 @@ fun DiagnosticsScreen(
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 item { Spacer(Modifier.height(4.dp)) }
+                item(key = "voice_session") { VoiceDiagnosticsPanel(voice) }
                 Diagnostics.Group.entries.forEachIndexed { i, group ->
                     val inGroup = current.filter { it.group == group }
                     if (inGroup.isEmpty()) return@forEachIndexed

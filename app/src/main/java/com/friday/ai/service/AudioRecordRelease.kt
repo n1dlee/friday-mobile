@@ -3,6 +3,15 @@ package com.friday.ai.service
 import android.media.AudioRecord
 import android.util.Log
 
+/** Stops a blocking read; its owner still releases the recorder in finally. */
+fun AudioRecord?.interruptCapture(tag: String) {
+    try {
+        this?.stop()
+    } catch (e: IllegalStateException) {
+        Log.d(tag, "Capture already stopped: ${e.javaClass.simpleName}")
+    }
+}
+
 /**
  * Stops and releases a recorder, each step on its own.
  *

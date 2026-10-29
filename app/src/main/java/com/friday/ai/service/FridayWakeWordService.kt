@@ -214,7 +214,7 @@ class FridayWakeWordService : Service() {
         conversation = VoiceConversation(
             scope = scope,
             io = VoiceIO(
-                overlay, speaker, transcriber, OfflineCommandRecognizer(this), wake, notifier, focus,
+                overlay, speaker, transcriber, OfflineCommandRecognizer(this) { wake.voskModel }, wake, notifier, focus,
                 inCall = { com.friday.ai.core.CallState.inCall(this) }
             ),
             gate = gate,
@@ -357,7 +357,9 @@ class FridayWakeWordService : Service() {
         running = false
         started = false
         if (::conversation.isInitialized) {
-            wake.destroy()
+            val pending = conversation.destroy()
+            // The command recorder's word follower can still be using the shared Vosk model.
+            if (pending == null) wake.destroy() else pending.invokeOnCompletion { wake.destroy() }
             speaker.destroy()
             overlay.dismiss()
             overlay.release()

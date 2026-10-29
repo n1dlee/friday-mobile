@@ -5,13 +5,10 @@ import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.util.Log
 import kotlinx.coroutines.CancellableContinuation
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import okhttp3.OkHttpClient
@@ -23,8 +20,12 @@ import okio.ByteString
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
+import com.friday.ai.core.voice.PlaybackEvent
+import com.friday.ai.core.voice.PlaybackPhase
+import com.friday.ai.core.voice.VoiceEngine
 
 /**
  * Friday's voice.
@@ -57,6 +58,8 @@ class EdgeTtsSpeaker(private val context: Context) {
 
     @Volatile
     private var player: MediaPlayer? = null
+    private var playerOwner: SpeechSession? = null
+    private val playbackLock = Any()
 
     @Volatile
     private var activeSession: SpeechSession? = null
@@ -64,89 +67,38 @@ class EdgeTtsSpeaker(private val context: Context) {
     /** Offline safety net, created lazily so the engine only spins up if needed. */
     private val systemTts: SystemTtsSpeaker by lazy { SystemTtsSpeaker(context) }
 
-    /** One queued utterance: either synthesized audio, or text to fall back on. */
-    private sealed interface Playable {
-        @JvmInline value class Audio(val bytes: ByteArray) : Playable
-        @JvmInline value class Fallback(val text: String) : Playable
-    }
-
     /**
      * An in-progress spoken response. Text is pushed in as it becomes
      * available; synthesis and playback run as a pipeline behind it.
      */
-    inner class SpeechSession internal constructor() {
+    inner class SpeechSession internal constructor(private val onPlayback: (PlaybackEvent) -> Unit) {
 
-        private val pendingText = Channel<String>(Channel.UNLIMITED)
+        private val pipeline = SpeechPipeline(scope, SpeechPipeline.Output(
+            synthesize = { text -> phrases.read(text) ?: synthesize(text) },
+            play = { audio, started -> playAudio(audio, this, started) },
+            fallback = { text, started -> systemTts.speak(text, started) },
+            stop = { releasePlayer(this) }
+        )) { event -> if (activeSession === this) onPlayback(event) }
 
-        // Small buffer: stay a sentence or two ahead without synthesizing an
-        // entire long answer that the user may interrupt.
-        private val readyAudio = Channel<Playable>(capacity = 2)
-
-        private val finished = CompletableDeferred<Unit>()
-
-        @Volatile
-        private var spokeAnything = false
-
-        private val synthJob: Job = scope.launch {
-            try {
-                for (text in pendingText) {
-                    val audio = phrases.read(text) ?: runCatching { synthesize(text) }
-                        .onFailure { Log.e(TAG, "Synthesis failed: ${it.message}") }
-                        .getOrNull()
-                    // Queue either way so utterances still play in order.
-                    if (audio != null && audio.isNotEmpty()) {
-                        readyAudio.send(Playable.Audio(audio))
-                    } else {
-                        Log.w(TAG, "Edge gave no audio; using the on-device voice")
-                        readyAudio.send(Playable.Fallback(text))
-                    }
-                }
-            } finally {
-                readyAudio.close()
-            }
-        }
-
-        private val playJob: Job = scope.launch {
-            try {
-                for (item in readyAudio) {
-                    when (item) {
-                        is Playable.Audio -> playAudio(item.bytes)
-                        is Playable.Fallback -> systemTts.speak(item.text)
-                    }
-                    spokeAnything = true
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Playback stopped: ${e.message}")
-            } finally {
-                finished.complete(Unit)
-            }
+        internal fun event(phase: PlaybackPhase, engine: VoiceEngine = VoiceEngine.EDGE) {
+            if (activeSession === this) onPlayback(PlaybackEvent(phase, engine))
         }
 
         /** Queues one more piece of text to speak. Safe to call repeatedly. */
         fun offer(text: String) {
-            if (text.isBlank()) return
-            pendingText.trySend(text)
+            pipeline.offer(text)
         }
 
         /** Signals that no more text is coming. */
         fun endInput() {
-            pendingText.close()
+            pipeline.endInput()
         }
 
         /** Suspends until everything queued has finished playing. */
-        suspend fun awaitCompletion() {
-            finished.await()
-        }
-
-        /** True if at least one utterance actually played. */
-        fun spoke(): Boolean = spokeAnything
+        suspend fun awaitCompletion(): Boolean = pipeline.awaitCompletion()
 
         fun cancel() {
-            pendingText.close()
-            synthJob.cancel()
-            playJob.cancel()
-            releasePlayer()
-            finished.complete(Unit)
+            pipeline.cancel()
         }
     }
 
@@ -154,23 +106,26 @@ class EdgeTtsSpeaker(private val context: Context) {
      * Starts an incremental spoken response. Cancels whatever was being said
      * before, so the assistant never talks over itself.
      */
-    fun beginSpeech(): SpeechSession {
+    fun beginSpeech(onPlayback: (PlaybackEvent) -> Unit = {}): SpeechSession {
         stop()
-        return SpeechSession().also { activeSession = it }
+        return SpeechSession(onPlayback).also {
+            activeSession = it
+            it.event(PlaybackPhase.QUEUED)
+        }
     }
 
     /**
      * Speaks a single complete utterance, invoking [onDone] once playback
      * finishes — or immediately if synthesis fails, so callers that resume
      * listening in the callback never hang. The callback belongs to this
-     * call: a later [speak] cannot steal it.
+     * call: a later [speakObserved] cannot steal it.
      */
-    fun speak(text: String, onDone: (() -> Unit)? = null) {
+    fun speakObserved(text: String, onPlayback: (PlaybackEvent) -> Unit, onDone: (() -> Unit)? = null) {
         if (text.isBlank()) {
             onDone?.invoke()
             return
         }
-        val session = beginSpeech()
+        val session = beginSpeech(onPlayback)
         session.offer(text)
         session.endInput()
         scope.launch {
@@ -209,7 +164,8 @@ class EdgeTtsSpeaker(private val context: Context) {
 
     private val phrases by lazy { PhraseCache(File(context.filesDir, "tts_cache")) }
 
-    private fun releasePlayer() {
+    private fun releasePlayer(owner: SpeechSession? = null) = synchronized(playbackLock) {
+        if (owner != null && playerOwner !== owner) return@synchronized
         player?.let {
             try {
                 if (it.isPlaying) it.stop()
@@ -219,6 +175,7 @@ class EdgeTtsSpeaker(private val context: Context) {
             }
         }
         player = null
+        playerOwner = null
     }
 
     /** One synthesis; after a 403 caused by a wrong phone clock, one more try with the corrected clock. */
@@ -302,18 +259,15 @@ class EdgeTtsSpeaker(private val context: Context) {
         if (isActive) resume(value)
     }
 
-    private suspend fun playAudio(mp3: ByteArray) {
+    private suspend fun playAudio(mp3: ByteArray, owner: SpeechSession, onStarted: () -> Unit): Boolean {
         val file = File(context.cacheDir, "tts_${System.nanoTime()}.mp3")
         try {
             file.writeBytes(mp3)
-            suspendCancellableCoroutine { cont ->
+            return suspendCancellableCoroutine { cont ->
                 val mp = MediaPlayer()
-                player = mp
-                var finished = false
-                fun finish() {
-                    if (finished) return
-                    finished = true
-                    if (cont.isActive) cont.resume(Unit)
+                val finished = AtomicBoolean()
+                fun finish(success: Boolean) {
+                    if (finished.compareAndSet(false, true) && cont.isActive) cont.resume(success)
                 }
                 try {
                     mp.setAudioAttributes(
@@ -323,22 +277,33 @@ class EdgeTtsSpeaker(private val context: Context) {
                             .build()
                     )
                     mp.setDataSource(file.absolutePath)
-                    mp.setOnCompletionListener { finish() }
+                    mp.setOnCompletionListener { finish(true) }
                     mp.setOnErrorListener { _, what, extra ->
                         Log.e(TAG, "MediaPlayer error what=$what extra=$extra")
-                        finish()
+                        finish(false)
                         true
                     }
                     mp.prepare()
-                    mp.start()
+                    synchronized(playbackLock) {
+                        if (cont.isActive && activeSession === owner) {
+                            player = mp
+                            playerOwner = owner
+                            mp.start()
+                            onStarted()
+                        } else {
+                            mp.release()
+                            finish(false)
+                        }
+                    }
                 } catch (e: Exception) {
                     Log.e(TAG, "Playback setup failed: ${e.message}")
-                    finish()
+                    mp.release()
+                    finish(false)
                 }
-                cont.invokeOnCancellation { releasePlayer() }
+                cont.invokeOnCancellation { releasePlayer(owner) }
             }
         } finally {
-            releasePlayer()
+            releasePlayer(owner)
             file.delete()
         }
     }

@@ -9,6 +9,9 @@ import android.util.Log
 import com.friday.ai.core.OfflineCommands
 import com.friday.ai.core.PcmAudio
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -24,7 +27,13 @@ import org.vosk.Recognizer
  * guessing at open speech, which is what makes this usable from a model small
  * enough to ship.
  */
-class OfflineCommandRecognizer(private val context: Context) {
+class OfflineCommandRecognizer(private val context: Context, private val sharedModel: () -> Model? = { null }) {
+
+    @Volatile private var activeRecord: AudioRecord? = null
+
+    fun abort() {
+        activeRecord.interruptCapture(TAG)
+    }
 
     private companion object {
         const val TAG = "OfflineCommands"
@@ -52,47 +61,24 @@ class OfflineCommandRecognizer(private val context: Context) {
      * @return the recognised phrase, or null if nothing usable was heard.
      */
     suspend fun listenForCommand(modelPath: String): String? = withContext(Dispatchers.IO) {
-        var model: Model? = null
+        var ownedModel: Model? = null
         var recognizer: Recognizer? = null
         var audioRecord: AudioRecord? = null
 
         try {
-            model = Model(modelPath)
+            currentCoroutineContext().ensureActive()
+            val model = sharedModel() ?: Model(modelPath).also { ownedModel = it }
             val grammar = JSONArray(OfflineCommands.GRAMMAR + "[unk]").toString()
             recognizer = Recognizer(model, SAMPLE_RATE.toFloat(), grammar)
 
             val bufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL, ENCODING)
                 .coerceAtLeast(4096)
             audioRecord = openVoiceRecord(SAMPLE_RATE, bufferSize, TAG) ?: return@withContext null
+            activeRecord = audioRecord
 
+            currentCoroutineContext().ensureActive()
             audioRecord.startRecording()
-            val buffer = ShortArray(bufferSize / 2)
-            val chunkMs = (buffer.size * 1000L) / SAMPLE_RATE
-
-            var totalMs = 0L
-            var silenceMs = 0L
-            var heardSpeech = false
-
-            while (totalMs < MAX_RECORD_MS) {
-                val read = audioRecord.read(buffer, 0, buffer.size)
-                if (read <= 0) break
-                totalMs += chunkMs
-
-                val energy = PcmAudio.rms(buffer, read)
-                if (energy > SILENCE_THRESHOLD) {
-                    heardSpeech = true
-                    silenceMs = 0
-                } else if (heardSpeech) {
-                    silenceMs += chunkMs
-                    if (silenceMs >= SILENCE_DURATION_MS) break
-                } else if (totalMs >= LEAD_IN_MS) {
-                    // Nobody spoke; don't hold the mic open pointlessly.
-                    break
-                }
-
-                val bytes = PcmAudio.toLittleEndian(buffer, read)
-                recognizer.acceptWaveForm(bytes, bytes.size)
-            }
+            val heardSpeech = capture(audioRecord, recognizer, ShortArray(bufferSize / 2))
 
             audioRecord.stop()
             if (!heardSpeech) return@withContext null
@@ -102,15 +88,41 @@ class OfflineCommandRecognizer(private val context: Context) {
             val cleaned = text.replace("[unk]", "").replace(Regex("\\s+"), " ").trim()
 
             cleaned.ifBlank { null }?.also { Log.i(TAG, "Offline heard ${it.length} characters") }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "Offline recognition failed: ${e.message}")
             null
         } finally {
             audioRecord.stopAndRelease(TAG)
+            if (activeRecord === audioRecord) activeRecord = null
             runCatching { recognizer?.close() }
-            runCatching { model?.close() }
+            runCatching { ownedModel?.close() }
         }
     }
 
-
+    private suspend fun capture(record: AudioRecord, recognizer: Recognizer, buffer: ShortArray): Boolean {
+        var totalMs = 0L
+        var silenceMs = 0L
+        var heardSpeech = false
+        while (totalMs < MAX_RECORD_MS) {
+            currentCoroutineContext().ensureActive()
+            val read = record.read(buffer, 0, buffer.size)
+            currentCoroutineContext().ensureActive()
+            if (read <= 0) break
+            totalMs += read * 1000L / SAMPLE_RATE
+            if (PcmAudio.rms(buffer, read) > SILENCE_THRESHOLD) {
+                heardSpeech = true
+                silenceMs = 0
+            } else if (heardSpeech) {
+                silenceMs += read * 1000L / SAMPLE_RATE
+                if (silenceMs >= SILENCE_DURATION_MS) break
+            } else if (totalMs >= LEAD_IN_MS) {
+                break
+            }
+            val bytes = PcmAudio.toLittleEndian(buffer, read)
+            recognizer.acceptWaveForm(bytes, bytes.size)
+        }
+        return heardSpeech
+    }
 }

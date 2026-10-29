@@ -17,6 +17,8 @@ import com.friday.ai.core.capabilities.DiagnosticReport
 /** The diagnostics screen reads the same snapshot that decides what the model is offered. */
 class DiagnosticsViewModel(private val device: DeviceContext) : ViewModel() {
 
+    val voice = com.friday.ai.service.voice.VoiceTelemetry.diagnostics.state
+
     val rows: StateFlow<List<Diagnostics.Row>?> = device.capabilities
         .map { caps -> caps?.let(Diagnostics::rows) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), null)
@@ -44,7 +46,8 @@ class DiagnosticsViewModel(private val device: DeviceContext) : ViewModel() {
             device = "${Build.MANUFACTURER} ${Build.MODEL} · Android ${Build.VERSION.RELEASE} " +
                 "(API ${Build.VERSION.SDK_INT})",
             rows = rows.value ?: Diagnostics.rows(device.refresh()),
-            log = log
+            log = log,
+            voice = voice.value
         )
     }
 

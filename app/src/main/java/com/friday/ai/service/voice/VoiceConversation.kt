@@ -14,6 +14,8 @@ import com.friday.ai.service.OfflineCommandRecognizer
 import com.friday.ai.service.WhisperTranscriber
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import com.friday.ai.core.voice.OwnerCheck
+import com.friday.ai.core.voice.VoiceStage
 
 /** Everything the conversation hears through and speaks through. */
 // A holder: one field per device the conversation uses, nothing to group.
@@ -28,24 +30,11 @@ class VoiceIO(
     /** Pauses other audio for the length of a conversation; released when the panel closes. */
     val focus: AudioFocusHold? = null,
     /** True while a phone or VoIP call is in progress. */
-    val inCall: () -> Boolean = { false }
+    val inCall: () -> Boolean = { false },
+    val diagnostics: com.friday.ai.core.voice.VoiceDiagnostics = VoiceTelemetry.diagnostics
 )
 
-/**
- * One spoken exchange after the wake word, from greeting to goodbye.
- *
- * All state changes run on [scope], which in the service is the main thread.
- * That replaces a tangle of `mainHandler.post`: callbacks from the speaker and
- * the wake listener arrive on other threads and are funnelled through here one
- * at a time. Blocking work stays inside the components that own it, so nothing
- * here holds the thread.
- *
- * Every wake starts a new *turn*, and anything still in flight from an older
- * one is ignored when it lands. Interrupting Friday stops her speech, and a
- * stopped utterance still reports itself finished — without the turn check
- * that report reopened the microphone alongside the new turn, so one spoken
- * command was recorded, and carried out, twice.
- */
+/** Owns a cancellable spoken exchange; transitions and recorder handover run on [scope]. */
 @Suppress("TooManyFunctions") // one function per step of a spoken exchange
 class VoiceConversation(
     private val scope: CoroutineScope,
@@ -69,9 +58,21 @@ class VoiceConversation(
     }
 
     private val acknowledgements = Acknowledgements()
+    private val diagnostics = io.diagnostics
 
-    /** Current turn. Only touched on [scope]'s thread. */
-    private var turn = 0
+    private var answering = false
+    private var interrupted = false
+    private val turns = VoiceTurnJobs(scope, interrupt = {
+        diagnostics.cancel()
+        interrupted = speaking || answering
+        speaking = false
+        answering = false
+        io.transcriber.abort()
+        io.offline.abort()
+        io.speaker.stop()
+    }, blocked = {
+        io.overlay.error("Микрофон ещё освобождается — вызовите Пятницу снова", ERROR_MS)
+    })
 
     /**
      * What this conversation is transcribed in: Russian when the owner called
@@ -93,19 +94,17 @@ class VoiceConversation(
      * words of the command aren't lost.
      */
     fun onWake(heard: String, continuing: Boolean = false, lead: FloatArray? = null) {
-        scope.launch {
+        turns.replace { mine ->
+            diagnostics.begin(mine)
             // The owner called: their session, which may light the lock screen.
             io.overlay.begin(userInitiated = true)
-            val mine = ++turn
             language = transcriptionLanguage(heard)
             // Music stops before anything is said or heard: the recording is
             // the user's voice, not the user's voice over a song.
             io.focus?.take()
-            val bargedIn = speaking
+            val bargedIn = interrupted
             if (bargedIn) {
                 Log.i(TAG, "Interrupted while speaking")
-                io.speaker.stop()
-                speaking = false
             }
             io.notifier.update("Listening...")
 
@@ -114,7 +113,7 @@ class VoiceConversation(
             if (bargedIn || continuing) {
                 io.overlay.listening()
                 listen(mine, isFollowUp = false, lead = lead.takeIf { continuing })
-                return@launch
+                return@replace
             }
 
             val greeting = acknowledgements.next(WakePhrases.detectLanguage(heard))
@@ -122,9 +121,8 @@ class VoiceConversation(
             // voice still needs a round-trip.
             io.overlay.greet(greeting)
             speaking = true
-            io.speaker.speak(greeting) {
-                scope.launch {
-                    if (mine != turn) return@launch
+            io.speaker.speakObserved(greeting, { event -> diagnostics.playback(mine, event) }) {
+                turns.launch(mine) {
                     speaking = false
                     io.overlay.listening()
                     // Only now is the microphone opened. Under the greeting it
@@ -149,10 +147,12 @@ class VoiceConversation(
             }
             // Friday's own announcement: shown where allowed, never lights the screen.
             io.overlay.begin(userInitiated = false)
-            val mine = ++turn
-            // Only when an answer is awaited: a ringing phone keeps its ringtone.
-            if (listenAfter) io.focus?.take()
-            speakAndContinue(mine, text, allowFollowUp = listenAfter)
+            turns.replace { mine ->
+                diagnostics.begin(mine)
+                // Only when an answer is awaited: a ringing phone keeps its ringtone.
+                if (listenAfter) io.focus?.take()
+                speakAndContinue(mine, text, allowFollowUp = listenAfter)
+            }
         }
     }
 
@@ -162,7 +162,7 @@ class VoiceConversation(
      * instead of complaining "не расслышала".
      */
     internal suspend fun listen(mine: Int, isFollowUp: Boolean, attempt: Int = 1, lead: FloatArray? = null) {
-        io.transcriber.listener = overlayFeedback
+        io.transcriber.listener = feedback(mine)
         // The wake listener may still hold the microphone (it listens while
         // Friday speaks, so she can be interrupted). Two recorders at once
         // left one of them with silence: "Не расслышала" for no reason.
@@ -174,7 +174,9 @@ class VoiceConversation(
             return
         }
         val apiKey = session.apiKey()
-        if (apiKey.isBlank()) {
+        if (apiKey.isBlank() && io.wake.voskModel == null) {
+            diagnostics.heard(mine, VoiceTurn.Outcome.Unavailable(VoiceTurn.Failure.NO_KEY))
+            diagnostics.stage(mine, VoiceStage.FAILED)
             io.overlay.error("Не задан ключ Groq — откройте настройки Friday", ERROR_MS)
             return
         }
@@ -182,12 +184,13 @@ class VoiceConversation(
         io.transcriber.language = language
         val outcome = if (lead != null) io.transcriber.recordAndTranscribe(apiKey, gate.commandCheck(), lead)
         else io.transcriber.recordAndTranscribe(apiKey, gate.commandCheck())
-        if (mine != turn) {
+        if (!turns.current(mine)) {
             // Interrupted while this was recording: the new turn owns the
             // conversation now, and this audio was its wake word anyway.
             Log.i(TAG, "Dropped a recording from an interrupted turn")
             return
         }
+        diagnostics.heard(mine, outcome)
         // Said in one breath with the name: the transcript starts with it too.
         val command = (outcome as? VoiceTurn.Outcome.Heard)?.let { WakePhrases.stripCall(it.text) }
         // Only the name after all: greet and listen, as for a plain call.
@@ -209,6 +212,15 @@ class VoiceConversation(
         isFollowUp: Boolean,
         attempt: Int
     ) {
+        if (outcome is VoiceTurn.Outcome.Unavailable) {
+            diagnostics.stage(mine, VoiceStage.FAILED)
+            io.overlay.error(VoiceErrors.asr(outcome.reason), ERROR_MS)
+            return
+        }
+        if (outcome is VoiceTurn.Outcome.Heard && outcome.degradedBy != null) {
+            runDegraded(mine, command ?: outcome.text, outcome.degradedBy)
+            return
+        }
         when (VoiceTurn.next(outcome, isFollowUp, attempt, MAX_LISTEN_ATTEMPTS)) {
             VoiceTurn.Next.PROCESS -> heard(mine, command ?: (outcome as VoiceTurn.Outcome.Heard).text)
             VoiceTurn.Next.LISTEN_AGAIN -> {
@@ -217,6 +229,7 @@ class VoiceConversation(
                 listen(mine, isFollowUp = false, attempt = attempt + 1)
             }
             VoiceTurn.Next.END_QUIETLY -> {
+                diagnostics.stage(mine, VoiceStage.FINISHED)
                 if (outcome is VoiceTurn.Outcome.Stranger) Log.i(TAG, "Follow-up from another voice ignored")
                 // "Отправить?" with no answer heard: it does not wait for a "да" said later.
                 if (commands.dropPending()) {
@@ -230,6 +243,26 @@ class VoiceConversation(
             VoiceTurn.Next.SAY_NOT_HEARD -> io.overlay.showResult("Не расслышала", NOTICE_MS)
             VoiceTurn.Next.SAY_NOT_RECOGNISED -> io.overlay.showResult("Не узнала голос", NOTICE_MS)
         }
+    }
+
+    private suspend fun runDegraded(mine: Int, text: String, reason: VoiceTurn.Failure) {
+        if (ConversationControl.isFarewell(text)) {
+            close()
+            return
+        }
+        // Uncertain local words must not confirm a send or become unrestricted agent input.
+        commands.dropPending()
+        io.overlay.source("локально")
+        val command = commands.route(text)
+        if (!OfflineCommands.isOfflineCapable(command) || command is CommandResult.SendMessage) {
+            speakAndContinue(mine, VoiceErrors.localOnly(reason, session.russian()), false)
+            return
+        }
+        io.overlay.processing(text)
+        val reply = spokenReply(commands.execute(command, session.russian()))
+        session.log(text, reply, "local_fallback")
+        session.mirror(text, reply)
+        if (turns.current(mine)) speakAndContinue(mine, reply, allowFollowUp = false)
     }
 
     private suspend fun heard(mine: Int, text: String) {
@@ -258,25 +291,42 @@ class VoiceConversation(
         // A silent quick link: opened, and nothing shown, said or kept.
         if (command is CommandResult.OpenLink && command.silent) {
             commands.execute(command, russian)
-            if (mine == turn) io.overlay.dismiss()
+            if (turns.current(mine)) io.overlay.dismiss()
             return
         }
         io.notifier.update("Processing...")
+        diagnostics.stage(mine, VoiceStage.THINKING)
         io.overlay.processing(text)
         io.overlay.source(sourceLabel(command, commands.lastRouteLearned, russian))
         val outcome = commands.execute(command, russian)
         if (outcome is CommandExecutor.Outcome.Conversation) {
-            when (val r = answers.answer(outcome.text)) {
+            answering = true
+            val result = try {
+                answers.answer(outcome.text, { turns.current(mine) }) { event ->
+                    turns.launch(mine) {
+                        diagnostics.playback(mine, event)
+                        if (event.phase == com.friday.ai.core.voice.PlaybackPhase.PLAYING) {
+                            speaking = true
+                            io.wake.listen()
+                        } else if (event.phase == com.friday.ai.core.voice.PlaybackPhase.WAITING) {
+                            speaking = false
+                        }
+                    }
+                }
+            } finally {
+                if (turns.current(mine)) answering = false
+            }
+            when (val r = result) {
                 is SpokenAnswer.Result.Finished ->
-                    if (mine == turn) afterSpeaking(mine, r.response, r.followUp && !last)
-                is SpokenAnswer.Result.Failed -> if (mine == turn) speakAndContinue(mine, r.message, false)
+                    if (turns.current(mine)) afterSpeaking(mine, r.response, r.followUp && !last)
+                is SpokenAnswer.Result.Failed -> if (turns.current(mine)) speakAndContinue(mine, r.message, false)
             }
             return
         }
         val reply = spokenReply(outcome)
         session.log(text, reply, command::class.simpleName)
         session.mirror(text, reply)
-        if (mine == turn) speakAndContinue(mine, reply, allowFollowUp = !last)
+        if (turns.current(mine)) speakAndContinue(mine, reply, allowFollowUp = !last)
     }
 
     /**
@@ -290,15 +340,24 @@ class VoiceConversation(
             return
         }
         io.overlay.listening()
+        diagnostics.stage(mine, VoiceStage.LISTENING)
         val heard = io.offline.listenForCommand(modelPath)
+        if (turns.current(mine)) {
+            diagnostics.heard(mine, heard?.let { VoiceTurn.Outcome.Heard(it, VoiceTurn.Origin.LOCAL) }
+                ?: VoiceTurn.Outcome.Nothing)
+        }
         when {
-            mine != turn -> Unit
+            !turns.current(mine) -> Unit
             heard.isNullOrBlank() -> io.overlay.dismiss()
             else -> runOffline(mine, heard)
         }
     }
 
     private suspend fun runOffline(mine: Int, heard: String) {
+        if (ConversationControl.isFarewell(heard)) {
+            close()
+            return
+        }
         io.overlay.processing(heard)
         val command = commands.route(heard)
         if (!OfflineCommands.isOfflineCapable(command)) {
@@ -327,8 +386,8 @@ class VoiceConversation(
         io.overlay.speaking(text)
         speaking = true
         io.wake.listen()
-        io.speaker.speak(text) {
-            scope.launch { if (mine == turn) afterSpeaking(mine, text, allowFollowUp) }
+        io.speaker.speakObserved(text, { event -> diagnostics.playback(mine, event) }) {
+            turns.launch(mine) { afterSpeaking(mine, text, allowFollowUp) }
         }
     }
 
@@ -337,37 +396,45 @@ class VoiceConversation(
         speaking = false
         // Never open the microphone for a follow-up during a call.
         if (allowFollowUp && !io.inCall()) {
+            diagnostics.stage(mine, VoiceStage.LISTENING)
             io.overlay.listening()
             listen(mine, isFollowUp = true)
         } else {
+            diagnostics.stage(mine, VoiceStage.FINISHED)
             io.overlay.showResult(spokenText, RESULT_LINGER_MS)
         }
     }
 
-    /**
-     * The user said they are done: stop talking and get out of the way. No
-     * goodbye is spoken — the fastest way out of their way is to just go.
-     */
     /** The owner closed the panel: stop talking and listening; what was done stays done. */
     fun close() {
-        scope.launch {
-            io.transcriber.requestStop()
-            endConversation()
+        turns.close {
+            commands.dropPending()
+            io.overlay.dismiss()
         }
     }
 
+    fun destroy() = turns.destroy()
+
     private fun endConversation() {
         Log.i(TAG, "User ended the conversation")
-        turn++
-        io.speaker.stop()
-        io.overlay.dismiss()
+        close()
     }
 
-    private val overlayFeedback = object : WhisperTranscriber.Listener {
-        override fun onRecordingStarted() = io.overlay.hearing(false)
-        override fun onSpeechDetected() = io.overlay.hearing(true)
-        override fun onRecordingFinished() = io.overlay.processing(null)
-        override fun onError(message: String) = io.overlay.error(message, ERROR_MS)
+    private fun feedback(mine: Int) = object : WhisperTranscriber.Listener {
+        override fun onRecordingStarted() {
+            if (turns.current(mine)) {
+                diagnostics.stage(mine, VoiceStage.LISTENING)
+                io.overlay.hearing(false)
+            }
+        }
+        override fun onTranscriptionStarted() { diagnostics.stage(mine, VoiceStage.TRANSCRIBING) }
+        override fun onOwnerCheckStarted() { diagnostics.owner(mine, OwnerCheck.CHECKING) }
+        override fun onOwnerChecked(accepted: Boolean) {
+            diagnostics.owner(mine, if (accepted) OwnerCheck.ACCEPTED else OwnerCheck.REJECTED)
+        }
+        override fun onSpeechDetected() { if (turns.current(mine)) io.overlay.hearing(true) }
+        override fun onRecordingFinished() { if (turns.current(mine)) io.overlay.processing(null) }
+        override fun onError(message: String) { if (turns.current(mine)) io.overlay.error(message, ERROR_MS) }
     }
 }
 

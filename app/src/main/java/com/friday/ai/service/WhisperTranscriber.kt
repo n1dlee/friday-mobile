@@ -8,14 +8,13 @@ import com.friday.ai.core.PcmAudio
 import com.friday.ai.core.RollingAudio
 import com.friday.ai.core.VoiceTurn
 import com.friday.ai.core.audio.SpeechEndpointer
-import com.friday.ai.core.audio.WhisperArtifacts
 import com.friday.ai.core.people.NameHints
 import com.friday.ai.data.remote.GroqApiService
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import java.io.File
 import java.io.FileOutputStream
 import java.io.RandomAccessFile
@@ -35,6 +34,7 @@ class WhisperTranscriber(
         private const val MS_PER_SECOND = 1000L
         private const val MAX_RECORD_SAMPLES = (SAMPLE_RATE * SpeechEndpointer.MAX_MS / MS_PER_SECOND).toInt()
         private const val MIN_BUFFER_BYTES = 4096
+        private const val LEVEL_RANGE = 5000.0
 
         /** Lead-in kept ahead of the first loud frame for speaker checking: 300 ms. */
         private const val VOICE_PRE_ROLL = SAMPLE_RATE * 3 / 10
@@ -46,6 +46,9 @@ class WhisperTranscriber(
         fun onSpeechDetected() = Unit
         fun onRecordingFinished() = Unit
         fun onTranscriptionResult(text: String) = Unit
+        fun onTranscriptionStarted() = Unit
+        fun onOwnerCheckStarted() = Unit
+        fun onOwnerChecked(accepted: Boolean) = Unit
         fun onError(message: String) = Unit
     }
 
@@ -61,7 +64,12 @@ class WhisperTranscriber(
     /** Names to expect (see [NameHints]); null for none. */
     var hints: () -> String? = { null }
 
-    private var effects: AudioEffects? = null
+    @Volatile private var activeRecord: AudioRecord? = null
+
+    /** Aborts capture; the cancelled caller releases the recorder and discards its audio. */
+    fun abort() {
+        activeRecord.interruptCapture(TAG)
+    }
 
     /** The calibrated speech level: the most a voice ever has to reach (see [SpeechEndpointer]). */
     var silenceThreshold: Double = DEFAULT_SILENCE_THRESHOLD
@@ -110,13 +118,16 @@ class WhisperTranscriber(
             .coerceAtLeast(MIN_BUFFER_BYTES)
 
         var audioRecord: AudioRecord? = null
+        var effects: AudioEffects? = null
         try {
+            currentCoroutineContext().ensureActive()
             // VOICE_RECOGNITION rather than MIC: it is the tuned path, and it
             // is what the hardware effects below expect to sit on.
             audioRecord = openVoiceRecord(SAMPLE_RATE, bufferSize, TAG) ?: run {
                 withContext(Dispatchers.Main) { listener?.onError("Microphone unavailable") }
                 return@withContext VoiceTurn.Outcome.Nothing
             }
+            activeRecord = audioRecord
             effects = AudioEffects.attach(audioRecord.audioSessionId)
 
             val capture = capture(
@@ -128,14 +139,14 @@ class WhisperTranscriber(
             // The turn was abandoned: the upload is cancelled with it, and that is no error to show.
             throw e
         } catch (e: Exception) {
-            Log.e(TAG, "Transcription error: ${e.message}")
-            withContext(Dispatchers.Main) { listener?.onError(e.message ?: "Transcription failed") }
-            VoiceTurn.Outcome.Nothing
+            Log.e(TAG, "Transcription error: ${e.javaClass.simpleName}")
+            withContext(Dispatchers.Main) { listener?.onError("Ошибка записи или распознавания") }
+            VoiceTurn.Outcome.Unavailable(VoiceTurn.Failure.CAPTURE)
         } finally {
             // Effects first: one outliving its audio session leaks.
             effects?.release()
-            effects = null
             audioRecord.stopAndRelease(TAG)
+            if (activeRecord === audioRecord) activeRecord = null
         }
     }
 
@@ -162,23 +173,25 @@ class WhisperTranscriber(
         val endpointer = SpeechEndpointer(ceiling = silenceThreshold, leadMs = leadMs)
         val words = endpointModel()?.let(WordFollower::open)
         var onDevice: String? = null
-        stopRequested = false
-        lead?.let(::toPcm16)?.let { samples ->
-            pcm.add(PcmAudio.toLittleEndian(samples, samples.size))
-            voice?.append(samples, samples.size)
-        }
-
-        record.startRecording()
-        withContext(Dispatchers.Main) { listener?.onRecordingStarted() }
-
         try {
+            stopRequested = false
+            lead?.let(::toPcm16)?.let { samples ->
+                pcm.add(PcmAudio.toLittleEndian(samples, samples.size))
+                voice?.append(samples, samples.size)
+                words?.feed(samples, samples.size, endpointer)
+            }
+            currentCoroutineContext().ensureActive()
+            record.startRecording()
+            withContext(Dispatchers.Main) { listener?.onRecordingStarted() }
             while (true) {
+                currentCoroutineContext().ensureActive()
                 if (stopRequested) endpointer.stop()
                 if (endpointer.end != null) break
                 val read = record.read(buffer, 0, buffer.size)
+                currentCoroutineContext().ensureActive()
                 if (read <= 0) break
                 pcm.add(PcmAudio.toLittleEndian(buffer, read))
-                onLevel?.invoke(normaliseLevel(PcmAudio.rms(buffer, read)))
+                onLevel?.invoke(Math.sqrt((PcmAudio.rms(buffer, read) / LEVEL_RANGE).coerceIn(0.0, 1.0)).toFloat())
 
                 val wasSpeaking = endpointer.speechStarted
                 endpointer.push(buffer, read)
@@ -221,48 +234,34 @@ class WhisperTranscriber(
         apiKey: String,
         capture: Capture,
         speakerCheck: ((FloatArray) -> Boolean)?
-    ): VoiceTurn.Outcome = coroutineScope {
-        val verdict = if (speakerCheck != null && capture.voice != null) {
-            async(Dispatchers.Default) { speakerCheck(capture.voice) }
-        } else null
-
+    ): VoiceTurn.Outcome {
         val prompt = runCatching { hints() }.getOrNull()
         // A file of its own: the chat's microphone and the voice service each
         // have a transcriber, and a shared name let one overwrite the other.
-        val wavFile = File.createTempFile("friday-asr-", ".wav", cacheDir)
-        val heard = try {
-            writeWav(wavFile, capture.pcm, SAMPLE_RATE)
-            groqApi.transcribeAudio(apiKey, wavFile, language = language, prompt = prompt)
-        } finally {
-            if (!wavFile.delete()) Log.w(TAG, "Could not delete the recording")
-        }
-        val text = WhisperArtifacts.clean(heard)
-        if (text != heard.trim()) Log.i(TAG, "Dropped made-up text from the transcript")
-
-        val whisperHeard = text.isNotBlank() && !NameHints.isEcho(text, prompt)
-        val fallback = capture.words?.takeIf { !whisperHeard && it.isNotBlank() }
-        if (fallback != null) Log.i(TAG, "Whisper heard nothing; using the on-device words")
-        when {
-            verdict?.await() == false -> VoiceTurn.Outcome.Stranger
-            fallback != null -> VoiceTurn.Outcome.Heard(fallback)
-            !whisperHeard -> VoiceTurn.Outcome.Nothing
-            else -> {
-                withContext(Dispatchers.Main) { listener?.onTranscriptionResult(text) }
-                VoiceTurn.Outcome.Heard(text)
+        withContext(Dispatchers.Main) { listener?.onTranscriptionStarted() }
+        val check = if (speakerCheck != null && capture.voice != null) {
+            listener?.onOwnerCheckStarted()
+            val verify: suspend () -> Boolean = {
+                val accepted = speakerCheck(capture.voice)
+                listener?.onOwnerChecked(accepted)
+                accepted
+            }
+            verify
+        } else null
+        val result = AsrRecovery.transcribe(capture.words, prompt, apiKey.isNotBlank(), check) {
+            val wavFile = File.createTempFile("friday-asr-", ".wav", cacheDir)
+            try {
+                writeWav(wavFile, capture.pcm, SAMPLE_RATE)
+                groqApi.transcribeAudio(apiKey, wavFile, language = language, prompt = prompt)
+            } finally {
+                if (!wavFile.delete()) Log.w(TAG, "Could not delete the recording")
             }
         }
+        if (result is VoiceTurn.Outcome.Heard) {
+            withContext(Dispatchers.Main) { listener?.onTranscriptionResult(result.text) }
+        }
+        return result
     }
-
-    /**
-     * RMS is linear over 0..32767, but loudness isn't perceived that way — a
-     * linear meter barely twitches for normal speech. The square root spreads
-     * conversational level across most of the range, which is what the ring
-     * needs to look alive.
-     */
-    private fun normaliseLevel(rms: Double): Float =
-        Math.sqrt((rms / 5000.0).coerceIn(0.0, 1.0)).toFloat()
-
-
 
     private fun writeWav(file: File, pcmChunks: List<ByteArray>, sampleRate: Int) {
         val totalDataSize = pcmChunks.sumOf { it.size }

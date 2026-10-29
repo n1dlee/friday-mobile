@@ -64,7 +64,8 @@ class WakeListener(
     private val micAllowed: () -> Boolean,
     private val io: CoroutineDispatcher = Dispatchers.IO,
     private val clock: () -> Long = SystemClock::elapsedRealtime,
-    private val backoffMs: List<Long> = BACKOFF_MS
+    private val backoffMs: List<Long> = BACKOFF_MS,
+    private val onRecovery: () -> Unit = {}
 ) {
 
     /** What [load] produced. */
@@ -96,6 +97,7 @@ class WakeListener(
                 admits = gate::admitsWake,
                 show = notifier::update,
                 load = { threshold -> loadVosk(context, notifier, threshold) },
+                onRecovery = { VoiceTelemetry.diagnostics.restarted() },
                 micAllowed = {
                     ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
                         PackageManager.PERMISSION_GRANTED
@@ -370,6 +372,7 @@ class WakeListener(
         val changed = _health.value != health
         _health.value = health
         WakeStatus.report(health)
+        if (changed && health.status == WakeHealth.Status.RECOVERING) onRecovery()
         if (changed && health.status != WakeHealth.Status.PAUSING) show(health.describe())
     }
 }

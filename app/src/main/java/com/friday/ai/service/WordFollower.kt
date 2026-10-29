@@ -11,8 +11,8 @@ import org.vosk.Recognizer
  * ends the recording when the sentence ends ([SpokenEnd]).
  *
  * Free-form decoding on the wake word's own model: nothing is downloaded or
- * loaded again, and no request leaves the phone. Its words only time the
- * end; the transcript still comes from Whisper.
+ * loaded again. Its words time the end and provide a local transcript when
+ * cloud recognition is unavailable or returns no useful words.
  */
 class WordFollower private constructor(private val decoder: Recognizer) : AutoCloseable {
 
